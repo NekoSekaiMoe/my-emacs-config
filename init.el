@@ -479,10 +479,10 @@
   "显示第一个匹配，激活局部按键映射"
   (goto-char nano-replace-match-start)
   (recenter)
-  ;; 高亮匹配
+  (when nano-replace-overlay
+    (delete-overlay nano-replace-overlay))
   (setq nano-replace-overlay (make-overlay nano-replace-match-start nano-replace-match-end))
   (overlay-put nano-replace-overlay 'face 'highlight)
-  ;; 激活局部按键映射
   (nano-replace-activate-keymap))
 
 ;; ^\ 替换模式 - 使用 overriding-local-map
@@ -495,6 +495,7 @@
     (define-key map " " #'nano-replace-yes)
     (define-key map "\r" #'nano-replace-yes)
     (define-key map "n" #'nano-replace-no)
+    (define-key map "a" #'nano-replace-do-all)
     (define-key map "A" #'nano-replace-do-all)
     (define-key map (kbd "C-c") #'nano-replace-cancel)
     (define-key map (kbd "C-g") #'nano-replace-cancel)
@@ -509,8 +510,8 @@
 (defun nano-replace-activate-keymap ()
   "使用 overriding-local-map 激活局部按键映射"
   (setq nano-replace--active t)
-  (setq overriding-local-map nano-replace-keymap)
-  "Replace this? (Y/n/A/^P/^N/M-C/M-R/M-B/^C/^G)")
+   (setq overriding-local-map nano-replace-keymap)
+   (message "Replace this? (Y/n/A/^P/^N/M-C/M-R/M-B/^C/^G)"))
 
 (defun nano-replace-deactivate-keymap ()
   "停用局部按键映射"
@@ -574,13 +575,13 @@
 (defun nano-replace-this ()
   "替换当前匹配"
   (when nano-replace-overlay
-    (delete-overlay nano-replace-overlay))
+    (delete-overlay nano-replace-overlay)
+    (setq nano-replace-overlay nil))
   (delete-region nano-replace-match-start nano-replace-match-end)
+  (goto-char nano-replace-match-start)
   (insert nano-replace-replace)
-  ;; 更新后续匹配的位置
-  (let ((len-diff (- (length nano-replace-replace) 
-                     (- nano-replace-match-end nano-replace-match-start))))
-    (setq nano-replace-match-end (+ nano-replace-match-start len-diff))))
+  (setq nano-replace-match-end (+ nano-replace-match-start
+                                   (length nano-replace-replace))))
 
 (defun nano-replace-find-next ()
   "查找下一个匹配"
@@ -591,8 +592,6 @@
           (setq nano-replace-match-end (match-end 0))
           (goto-char nano-replace-match-start)
           (recenter)
-          (when nano-replace-overlay
-            (delete-overlay nano-replace-overlay))
           (setq nano-replace-overlay (make-overlay nano-replace-match-start nano-replace-match-end))
           (overlay-put nano-replace-overlay 'face 'highlight)
           (nano-replace-activate-keymap))
@@ -609,8 +608,6 @@
           (setq nano-replace-match-end (match-end 0))
           (goto-char nano-replace-match-start)
           (recenter)
-          (when nano-replace-overlay
-            (delete-overlay nano-replace-overlay))
           (setq nano-replace-overlay (make-overlay nano-replace-match-start nano-replace-match-end))
           (overlay-put nano-replace-overlay 'face 'highlight)
           (nano-replace-activate-keymap))
@@ -619,6 +616,7 @@
 
 (defun nano-replace-do-all ()
   "全部替换"
+  (interactive)
   (save-excursion
     (goto-char (point-min))
     (let ((count 0)
@@ -627,6 +625,7 @@
         (replace-match nano-replace-replace)
         (setq count (1+ count)))
       (message "Replaced %d occurrences" count)))
+  (nano-replace-deactivate-keymap)
   (nano-replace-cleanup))
 
 (defun nano-replace-cleanup ()
