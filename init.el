@@ -401,10 +401,13 @@
 
 (defun nano-search-find-next ()
   "查找下一个匹配，支持 wrap"
-  (let ((case-fold-search (not nano-search-case)))
+  (let ((case-fold-search (not nano-search-case))
+        (current-pos (point)))
     ;; 先清除当前高亮
     (when nano-search-overlay
       (delete-overlay nano-search-overlay))
+    ;; 从当前匹配结束位置的下一个字符开始搜索
+    (goto-char (+ nano-search-match-end 1))
     (if (search-forward nano-search-string nil t)
         (progn
           (setq nano-search-match-start (match-beginning 0))
