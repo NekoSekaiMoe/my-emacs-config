@@ -335,17 +335,17 @@
 (defvar nano-search-overlay nil "搜索高亮覆盖")
 
 (defun nano-search ()
-  "Nano 风格的搜索：首次输入字符串，后续 ^W 继续搜索下一个"
+  "Nano 风格的搜索"
   (interactive)
-  (if (and nano-search-string (string= this-command 'nano-search))
-      ;; 如果已有搜索字符串，直接搜索下一个
-      (nano-search-find-next)
-    ;; 否则提示输入搜索字符串
+  (if nano-search-string
+      ;; 如果已有搜索字符串，弹出搜索框（显示上次的词），回车后搜索下一个
+      (nano-search-prompt-again)
+    ;; 首次搜索，提示输入字符串
     (setq nano-search-original-pos (point))
     (nano-search-prompt-input)))
 
 (defun nano-search-prompt-input ()
-  "提示输入搜索字符串"
+  "首次搜索：提示输入搜索字符串"
   (let* ((history nano-search-history)
          (default-val (car history))
          (prompt (if default-val
@@ -361,6 +361,20 @@
         (message "Cancelled")))
      (t
       (setq nano-search-string input)
+      (nano-search-find-first)))))
+
+(defun nano-search-prompt-again ()
+  "再次搜索：显示上次的搜索词，按回车跳到下一个"
+  (let* ((prompt (format "Search [%s]: " nano-search-string))
+         (input (read-string prompt nil 'nano-search-history nano-search-string)))
+    (cond
+     ((string= input "")
+      ;; 按回车，使用上次的搜索词，跳到下一个
+      (nano-search-find-next))
+     (t
+      ;; 输入了新词，重新搜索
+      (setq nano-search-string input)
+      (setq nano-search-original-pos (point))
       (nano-search-find-first)))))
 
 (defun nano-search-find-first ()
