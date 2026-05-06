@@ -139,8 +139,8 @@
 ;; ^F - Where Is (搜索) - 注意：Nano 中 ^W 是搜索
 (global-set-key (kbd "C-f") 'goto-line)
 
-;; ^W - Where Is (搜索)
-(global-set-key (kbd "C-w") 'isearch-forward)
+;; ^W - Where Is (Nano 风格搜索)
+(global-set-key (kbd "C-w") 'nano-search)
 
 ;; ^K - Cut (剪切行)
 (global-set-key (kbd "C-k") 'kill-whole-line)
@@ -220,6 +220,167 @@
           (move-to-column (string-to-number (cadr parts))))
       (goto-line (string-to-number (car parts))))))
 (global-set-key (kbd "C-/") 'nano-go-to-line)
+
+;; ========== Nano 风格搜索 ==========
+
+;; 搜索状态变量
+(defvar nano-search-string nil "当前搜索字符串")
+(defvar nano-search-history nil "搜索历史")
+(defvar nano-search-case nil "是否区分大小写")
+(defvar nano-search-regex nil "是否使用正则表达式")
+(defvar nano-search-backward nil "是否向后搜索")
+(defvar nano-search-overlay nil "搜索高亮覆盖")
+(defvar nano-search-match-start nil "匹配起始位置")
+(defvar nano-search-match-end nil "匹配结束位置")
+(defvar nano-search-original-pos nil "搜索前位置")
+
+(defun nano-search ()
+  "Nano 风格的搜索"
+  (interactive)
+  (setq nano-search-original-pos (point))
+  (nano-search-prompt-input))
+
+(defun nano-search-prompt-input ()
+  "提示输入搜索字符串"
+  (let* ((history nano-search-history)
+         (default-val (car history))
+         (prompt (if default-val
+                     (format "Search [%s]: " default-val)
+                   "Search: "))
+         (input (read-string prompt nil 'nano-search-history default-val)))
+    (cond
+     ((string= input "")
+      (if default-val
+          (progn
+            (setq nano-search-string default-val)
+            (nano-search-find-first))
+        (message "Cancelled")))
+     (t
+      (setq nano-search-string input)
+      (nano-search-find-first)))))
+
+(defun nano-search-find-first ()
+  "查找第一个匹配"
+  (let ((case-fold-search (not nano-search-case)))
+    (if (search-forward nano-search-string nil t)
+        (progn
+          (setq nano-search-match-start (match-beginning 0))
+          (setq nano-search-match-end (match-end 0))
+          (goto-char nano-search-match-start)
+          (recenter)
+          (nano-search-highlight)
+          (message "^G Help │ M-C Case │ M-B Backward │ ^P Prev │ ^T GoTo │ M-R Regex │ ^R Replace │ ^N Next │ ^C Cancel")
+          (nano-search-read-choice))
+      (goto-char nano-search-original-pos)
+      (message "Not found")
+      (nano-search-cleanup))))
+
+(defun nano-search-highlight ()
+  "高亮当前匹配"
+  (when nano-search-overlay
+    (delete-overlay nano-search-overlay))
+  (setq nano-search-overlay (make-overlay nano-search-match-start nano-search-match-end))
+  (overlay-put nano-search-overlay 'face 'highlight))
+
+(defun nano-search-read-choice ()
+  "读取用户选择"
+  (let ((choice (read-event)))
+    (cond
+     ;; ^C - 取消
+     ((eq choice ?\C-c)
+      (nano-search-cleanup)
+      (goto-char nano-search-original-pos)
+      (message "Cancelled"))
+     ;; ^G - 帮助
+     ((eq choice ?\C-g)
+      (message "Search commands: ^C Cancel, M-C Case, M-B Backward, ^P Prev, ^N Next, M-R Regex, ^R Replace, ^T GoTo")
+      (nano-search-read-choice))
+     ;; M-C - 切换区分大小写 (使用 escape 序列)
+     ((eq choice ?\M-c)
+      (setq nano-search-case (not nano-search-case))
+      (message "Case sensitive: %s" (if nano-search-case "ON" "OFF"))
+      (nano-search-read-choice))
+     ;; M-R - 切换正则表达式
+     ((eq choice ?\M-r)
+      (setq nano-search-regex (not nano-search-regex))
+      (message "Regex: %s" (if nano-search-regex "ON" "OFF"))
+      (nano-search-read-choice))
+     ;; M-B - 切换向后搜索
+     ((eq choice ?\M-b)
+      (setq nano-search-backward (not nano-search-backward))
+      (message "Direction: %s" (if nano-search-backward "BACKWARD" "FORWARD"))
+      (nano-search-read-choice))
+     ;; ^P - 更旧的匹配（向后）
+     ((eq choice ?\C-p)
+      (nano-search-find-prev))
+     ;; ^N - 更新的匹配（向前）
+     ((eq choice ?\C-n)
+      (nano-search-find-next))
+     ;; ^T - 跳转到指定行
+     ((eq choice ?\C-t)
+      (nano-search-goto-line))
+     ;; ^R - 进入替换模式
+     ((eq choice ?\C-r)
+      (nano-search-to-replace))
+     (t
+      (nano-search-read-choice)))))
+
+(defun nano-search-find-next ()
+  "查找下一个匹配"
+  (let ((case-fold-search (not nano-search-case)))
+    (if (search-forward nano-search-string nil t)
+        (progn
+          (setq nano-search-match-start (match-beginning 0))
+          (setq nano-search-match-end (match-end 0))
+          (goto-char nano-search-match-start)
+          (recenter)
+          (nano-search-highlight)
+          (message "^G Help │ M-C Case │ M-B Backward │ ^P Prev │ ^T GoTo │ M-R Regex │ ^R Replace │ ^N Next │ ^C Cancel")
+          (nano-search-read-choice))
+      (message "No more matches forward")
+      (nano-search-read-choice))))
+
+(defun nano-search-find-prev ()
+  "查找上一个匹配"
+  (let ((case-fold-search (not nano-search-case)))
+    (if (search-backward nano-search-string nil t)
+        (progn
+          (setq nano-search-match-start (match-beginning 0))
+          (setq nano-search-match-end (match-end 0))
+          (goto-char nano-search-match-start)
+          (recenter)
+          (nano-search-highlight)
+          (message "^G Help │ M-C Case │ M-B Backward │ ^P Prev │ ^T GoTo │ M-R Regex │ ^R Replace │ ^N Next │ ^C Cancel")
+          (nano-search-read-choice))
+      (message "No more matches backward")
+      (nano-search-read-choice))))
+
+(defun nano-search-goto-line ()
+  "跳转到指定行"
+  (let ((line (read-number "Go to line: ")))
+    (goto-char (point-min))
+    (forward-line (1- line)))
+  (message "^G Help │ M-C Case │ M-B Backward │ ^P Prev │ ^T GoTo │ M-R Regex │ ^R Replace │ ^N Next │ ^C Cancel")
+  (nano-search-read-choice))
+
+(defun nano-search-to-replace ()
+  "从搜索模式进入替换模式"
+  (let ((search-str nano-search-string))
+    (nano-search-cleanup)
+    (setq nano-replace-search search-str)
+    (nano-replace-prompt-replace)))
+
+(defun nano-search-cleanup ()
+  "清理搜索状态"
+  (when nano-search-overlay
+    (delete-overlay nano-search-overlay)
+    (setq nano-search-overlay nil))
+  (setq nano-search-string nil
+        nano-search-case nil
+        nano-search-regex nil
+        nano-search-backward nil
+        nano-search-match-start nil
+        nano-search-match-end nil))
 
 ;; ========== Nano 风格批量替换 ==========
 
