@@ -254,13 +254,15 @@
 (global-set-key (kbd "C-j") 'fill-paragraph)
 
 ;; ^/ - Go To Line (Nano 风格跳转)
+(defvar nano-go-to-line--original-pos nil "跳转前的原始位置")
+
 (defun nano-go-to-line ()
   "Nano 风格的跳转到指定位置"
   (interactive)
-  (let ((original-pos (point)))
-    (nano-go-to-line-prompt original-pos)))
+  (setq nano-go-to-line--original-pos (point))
+  (nano-go-to-line-prompt))
 
-(defun nano-go-to-line-prompt (original-pos)
+(defun nano-go-to-line-prompt ()
   "提示输入跳转位置"
   (let ((input (read-string "Go to line (column): ")))
     (cond
@@ -274,58 +276,85 @@
                     0)))
         (goto-char (point-min))
         (forward-line (1- line))
-               (move-to-column col)
+        (move-to-column col)
         (recenter)
-        (message "^G Help │ ^O End │ ^W Start │ ^V Bottom │ ^Y Top │ ^T To Text │ ^C Cancel")
-        (nano-go-to-line-read-choice original-pos))))))
+        (nano-go-to-line-activate-keymap))))))
 
-(defun nano-go-to-line-read-choice (original-pos)
-  "读取用户选择"
-  (message "^G Help | ^O End | ^W Start | ^V Bottom | ^Y Top | ^T To Text | ^C Cancel")
-  (let ((choice (read-char)))
-    (cond
-     ;; ^C - 取消
-     ((eq choice ?\C-c)
-      (goto-char original-pos)
-      (message "Cancelled"))
-     ;; ^G - 帮助
-     ((eq choice ?\C-g)
-      (message "GoTo: ^C Cancel, ^O End, ^W Start, ^V Bottom, ^Y Top, ^T To text")
-      (nano-go-to-line-read-choice original-pos))
-     ;; ^O - 跳转到文件结尾 (End)
-     ((eq choice ?\C-o)
-      (goto-char (point-max))
-      (recenter)
-      (nano-go-to-line-read-choice original-pos))
-     ;; ^W - 跳转到文件开头 (Start)
-     ((eq choice ?\C-w)
-      (goto-char (point-min))
-      (recenter)
-      (nano-go-to-line-read-choice original-pos))
-     ;; ^V - 跳转到尾行 (Bottom)
-     ((eq choice ?\C-v)
-      (goto-char (point-max))
-      (recenter 0)
-      (nano-go-to-line-read-choice original-pos))
-     ;; ^Y - 跳转到首行 (Top)
-     ((eq choice ?\C-y)
-      (goto-char (point-min))
-      (recenter 0)
-      (nano-go-to-line-read-choice original-pos))
-     ;; ^T - 跳转到指定文字 (To Text)
-     ((eq choice ?\C-t)
-      (let ((text (read-string "Go to text: ")))
-        (if (string= text "")
-            (nano-go-to-line-read-choice original-pos)
-          (if (search-forward text nil t)
-              (progn
-                (goto-char (match-beginning 0))
-                (recenter)
-                (nano-go-to-line-read-choice original-pos))
-            (message "Not found")
-            (nano-go-to-line-read-choice original-pos)))))
-     (t
-      (nano-go-to-line-read-choice original-pos)))))
+;; ^/ 跳转模式 - 使用 overriding-local-map 强制覆盖
+(defvar nano-go-to-line--original-pos nil)
+(defvar nano-go-to-line--active nil)
+
+(defvar nano-go-to-line-keymap
+  (let ((map (make-sparse-keymap)))
+    (define-key map (kbd "C-c") #'nano-go-to-line-cancel)
+    (define-key map (kbd "C-g") #'nano-go-to-line-help)
+    (define-key map (kbd "C-o") #'nano-go-to-line-end)
+    (define-key map (kbd "C-w") #'nano-go-to-line-start)
+    (define-key map (kbd "C-v") #'nano-go-to-line-bottom)
+    (define-key map (kbd "C-y") #'nano-go-to-line-top)
+    (define-key map (kbd "C-t") #'nano-go-to-line-to-text)
+    map)
+  "Keymap for nano go-to-line mode")
+
+(defun nano-go-to-line-activate-keymap ()
+  "使用 overriding-local-map 激活局部按键映射"
+  (setq nano-go-to-line--active t)
+  (setq overriding-local-map nano-go-to-line-keymap)
+  (message "^G Help | ^O End | ^W Start | ^V Bottom | ^Y Top | ^T To Text | ^C Cancel"))
+
+(defun nano-go-to-line-deactivate-keymap ()
+  "停用局部按键映射"
+  (setq nano-go-to-line--active nil)
+  (setq overriding-local-map nil))
+
+(defun nano-go-to-line-cancel ()
+  "取消跳转"
+  (interactive)
+  (goto-char nano-go-to-line--original-pos)
+  (nano-go-to-line-deactivate-keymap)
+  (message "Cancelled"))
+
+(defun nano-go-to-line-help ()
+  "显示帮助"
+  (interactive)
+  (message "GoTo: ^C Cancel, ^O End, ^W Start, ^V Bottom, ^Y Top, ^T To text"))
+
+(defun nano-go-to-line-end ()
+  "跳转到文件结尾"
+  (interactive)
+  (goto-char (point-max))
+  (recenter))
+
+(defun nano-go-to-line-start ()
+  "跳转到文件开头"
+  (interactive)
+  (goto-char (point-min))
+  (recenter))
+
+(defun nano-go-to-line-bottom ()
+  "跳转到尾行"
+  (interactive)
+  (goto-char (point-max))
+  (recenter 0))
+
+(defun nano-go-to-line-top ()
+  "跳转到首行"
+  (interactive)
+  (goto-char (point-min))
+  (recenter 0))
+
+(defun nano-go-to-line-to-text ()
+  "跳转到指定文字"
+  (interactive)
+  ;; 临时恢复全局映射以读取输入
+  (let ((text (read-string "Go to text: ")))
+    (if (string= text "")
+        (message "Cancelled")
+      (if (search-forward text nil t)
+          (progn
+            (goto-char (match-beginning 0))
+            (recenter))
+        (message "Not found")))))
 
 (global-set-key (kbd "C-/") 'nano-go-to-line)
 
@@ -447,58 +476,100 @@
       (nano-replace-cleanup))))
 
 (defun nano-replace-show-first-match ()
-  "显示第一个匹配，底部显示选项"
+  "显示第一个匹配，激活局部按键映射"
   (goto-char nano-replace-match-start)
   (recenter)
   ;; 高亮匹配
   (setq nano-replace-overlay (make-overlay nano-replace-match-start nano-replace-match-end))
   (overlay-put nano-replace-overlay 'face 'highlight)
-  ;; 显示选项提示
-  (message "Replace this? (Y/n/A/^/P/^N/M-C/M-R/M-B/C-g)")
-  (nano-replace-read-choice))
+  ;; 激活局部按键映射
+  (nano-replace-activate-keymap))
 
-(defun nano-replace-read-choice ()
-  "读取用户选择"
-  (message "Replace this? (Y/n/A/^P/^N/M-C/M-R/M-B/^G/^C)")
-  (let ((choice (read-char)))
-    (cond
-     ;; Y - 替换这个
-     ((memq choice '(?y ?Y ?\s ?\r))
-      (nano-replace-this)
-      (nano-replace-find-next))
-     ;; n - 跳过这个
-     ((eq choice ?n)
-      (nano-replace-find-next))
-     ;; A - 全部替换
-     ((eq choice ?A)
-      (nano-replace-all))
-     ;; ^P - 更旧的匹配（向后）
-     ((eq choice ?\C-p)
-      (nano-replace-prev-match))
-     ;; ^N - 更新的匹配（向前）
-     ((eq choice ?\C-n)
-      (nano-replace-find-next))
-     ;; M-C - 切换区分大小写
-     ((eq choice ?\M-c)
-      (setq nano-replace-case (not nano-replace-case))
-      (message "Case sensitive: %s" (if nano-replace-case "ON" "OFF"))
-      (nano-replace-read-choice))
-     ;; M-R - 切换正则表达式
-     ((eq choice ?\M-r)
-      (setq nano-replace-regex (not nano-replace-regex))
-      (message "Regex: %s" (if nano-replace-regex "ON" "OFF"))
-      (nano-replace-read-choice))
-     ;; M-B - 切换向后搜索
-     ((eq choice ?\M-b)
-      (setq nano-replace-backward (not nano-replace-backward))
-      (message "Direction: %s" (if nano-replace-backward "BACKWARD" "FORWARD"))
-      (nano-replace-read-choice))
-     ;; ^G 或 ^C - 取消
-     ((or (eq choice ?\C-g) (eq choice ?\C-c))
-      (nano-replace-cleanup)
-      (message "Cancelled"))
-     (t
-      (nano-replace-read-choice)))))
+;; ^\ 替换模式 - 使用 overriding-local-map
+(defvar nano-replace--active nil)
+
+(defvar nano-replace-keymap
+  (let ((map (make-sparse-keymap)))
+    (define-key map "y" #'nano-replace-yes)
+    (define-key map "Y" #'nano-replace-yes)
+    (define-key map " " #'nano-replace-yes)
+    (define-key map "\r" #'nano-replace-yes)
+    (define-key map "n" #'nano-replace-no)
+    (define-key map "A" #'nano-replace-do-all)
+    (define-key map (kbd "C-c") #'nano-replace-cancel)
+    (define-key map (kbd "C-g") #'nano-replace-cancel)
+    (define-key map (kbd "C-p") #'nano-replace-find-prev)
+    (define-key map (kbd "C-n") #'nano-replace-find-next)
+    (define-key map (kbd "M-c") #'nano-replace-toggle-case)
+    (define-key map (kbd "M-r") #'nano-replace-toggle-regex)
+    (define-key map (kbd "M-b") #'nano-replace-toggle-backward)
+    map)
+  "Keymap for nano replace mode")
+
+(defun nano-replace-activate-keymap ()
+  "使用 overriding-local-map 激活局部按键映射"
+  (setq nano-replace--active t)
+  (setq overriding-local-map nano-replace-keymap)
+  "Replace this? (Y/n/A/^P/^N/M-C/M-R/M-B/^C/^G)")
+
+(defun nano-replace-deactivate-keymap ()
+  "停用局部按键映射"
+  (setq nano-replace--active nil)
+  (setq overriding-local-map nil))
+
+(defun nano-replace-yes ()
+  "替换这个匹配"
+  (interactive)
+  (nano-replace-this)
+  (nano-replace-find-next))
+
+(defun nano-replace-no ()
+  "跳过这个匹配"
+  (interactive)
+  (nano-replace-find-next))
+
+(defun nano-replace-all ()
+  "全部替换"
+  (interactive)
+  (nano-replace-do-all))
+
+(defun nano-replace-prev ()
+  "上一个匹配"
+  (interactive)
+  (nano-replace-find-prev))
+
+(defun nano-replace-next ()
+  "下一个匹配"
+  (interactive)
+  (nano-replace-find-next))
+
+(defun nano-replace-toggle-case ()
+  "切换区分大小写"
+  (interactive)
+  (setq nano-replace-case (not nano-replace-case))
+  (message "Case sensitive: %s" (if nano-replace-case "ON" "OFF"))
+  (nano-replace-activate-keymap))
+
+(defun nano-replace-toggle-regex ()
+  "切换正则表达式"
+  (interactive)
+  (setq nano-replace-regex (not nano-replace-regex))
+  (message "Regex: %s" (if nano-replace-regex "ON" "OFF"))
+  (nano-replace-activate-keymap))
+
+(defun nano-replace-toggle-backward ()
+  "切换向后搜索"
+  (interactive)
+  (setq nano-replace-backward (not nano-replace-backward))
+  (message "Direction: %s" (if nano-replace-backward "BACKWARD" "FORWARD"))
+  (nano-replace-activate-keymap))
+
+(defun nano-replace-cancel ()
+  "取消替换"
+  (interactive)
+  (nano-replace-deactivate-keymap)
+  (nano-replace-cleanup)
+  (message "Cancelled"))
 
 (defun nano-replace-this ()
   "替换当前匹配"
@@ -524,12 +595,12 @@
             (delete-overlay nano-replace-overlay))
           (setq nano-replace-overlay (make-overlay nano-replace-match-start nano-replace-match-end))
           (overlay-put nano-replace-overlay 'face 'highlight)
-          (message "Replace this? (Y/n/A/^/P/^N/M-C/M-R/M-B/C-g)")
-          (nano-replace-read-choice))
+          (nano-replace-activate-keymap))
       (message "No more occurrences")
+      (nano-replace-deactivate-keymap)
       (nano-replace-cleanup))))
 
-(defun nano-replace-prev-match ()
+(defun nano-replace-find-prev ()
   "查找上一个匹配"
   (let ((case-fold-search (not nano-replace-case)))
     (if (search-backward nano-replace-search nil t)
@@ -542,12 +613,11 @@
             (delete-overlay nano-replace-overlay))
           (setq nano-replace-overlay (make-overlay nano-replace-match-start nano-replace-match-end))
           (overlay-put nano-replace-overlay 'face 'highlight)
-          (message "Replace this? (Y/n/A/^/P/^N/M-C/M-R/M-B/C-g)")
-          (nano-replace-read-choice))
+          (nano-replace-activate-keymap))
       (message "No previous occurrences")
-      (nano-replace-read-choice))))
+      (nano-replace-activate-keymap))))
 
-(defun nano-replace-all ()
+(defun nano-replace-do-all ()
   "全部替换"
   (save-excursion
     (goto-char (point-min))
@@ -558,13 +628,6 @@
         (setq count (1+ count)))
       (message "Replaced %d occurrences" count)))
   (nano-replace-cleanup))
-
-(defun nano-replace-goto-line ()
-  "跳转到指定行"
-  (let ((line (read-number "Go to line: ")))
-    (goto-char (point-min))
-    (forward-line (1- line)))
-  (nano-replace-read-choice))
 
 (defun nano-replace-cleanup ()
   "清理替换状态"
