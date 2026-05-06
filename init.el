@@ -49,6 +49,9 @@
  x-stretch-cursor t                               ;; 将光标拉伸到字形宽度
  kill-whole-line t)  ;; C-k时,同时删除该行
 
+;; 默认使用 text-mode（编辑模式），而非 fundamental-mode
+(setq-default major-mode 'text-mode)
+
 (setq
  fringes-outside-margins t   ;; fringe 放在外面
  echo-keystrokes 0.1         ;; 尽快显示按键序列
@@ -89,7 +92,7 @@
 (toggle-truncate-lines t)         ;; 当一行文字太长时,不自动换行
 (column-number-mode t)            ;; 在minibuffer上面的状态栏显示文件的行号,列号
 (line-number-mode t)              ;;设定显示文件的参数,以版本/人性化的显示,就是ls的参数
-(global-linum-mode t)             ;; 显示行号
+(global-display-line-numbers-mode t) ;; 显示行号
 (require 'saveplace)
 (save-place-mode 1)               ;; 记住上次打开文件光标的位置
 (global-subword-mode 1)           ;; 拆分连字符：oneWord 会被当作两个单词处理
@@ -104,3 +107,192 @@
 
 (unless (string-match-p "^Power N/A" (battery))   ; 笔记本上显示电量
   (display-battery-mode 1))
+
+;; ========== Nano 风格保存/退出功能 ==========
+
+;; 文件编码格式选择（模拟 Nano 的 M-M/M-D）
+(defvar nano-save-format 'unix "保存文件格式: 'unix, 'dos, 'mac")
+
+(defun nano-write-file-with-format (filename format)
+  "以指定 FORMAT 保存文件"
+  (let ((coding-system (cond
+                         ((eq format 'dos) 'dos)
+                         ((eq format 'mac) 'mac)
+                         (t 'unix))))
+    (set-buffer-file-coding-system coding-system)
+    (write-file filename)
+    (message "已保存为 %s 格式: %s" 
+             (cond ((eq format 'dos) "DOS")
+                   ((eq format 'mac) "Mac")
+                   (t "Unix"))
+             filename)))
+
+;; Nano 风格保存并退出
+(defun nano-save-and-exit ()
+  "Nano 风格的保存并退出流程"
+  (interactive)
+  (let ((buf (current-buffer))
+        (file (buffer-file-name)))
+    (if (buffer-modified-p)
+        ;; 文件已修改，询问是否保存
+        (let ((choice (nano-y-n-prompt 
+                       "Save modified buffer (ANSWERING \"No\" WILL DESTROY CHANGES) ? "
+                       '(?y ?n ?\C-g))))
+          (cond
+           ((eq choice ?y)
+            ;; 询问保存选项
+            (nano-save-options buf file))
+           ((eq choice ?n)
+            ;; 不保存直接退出
+            (kill-emacs))
+           ((eq choice ?\C-g)
+            ;; 取消
+            (message "Cancelled"))))
+      ;; 文件未修改，直接退出
+      (kill-emacs))))
+
+(defun nano-save-options (buf file)
+  "显示 Nano 风格的保存选项"
+  (let* (;; 默认文件名
+         (default-name (or file (buffer-name)))
+         ;; 读取用户输入的文件名
+         (prompt (format "File Name to Write%s: "
+                         (if file (format " (default %s)" default-name) "")))
+         (filename (read-string prompt nil nil default-name)))
+    (if (string= filename "")
+        (message "Cancelled")
+      ;; 选择保存格式
+      (let ((format-choice (nano-save-format-menu)))
+        (when format-choice
+          (with-current-buffer buf
+            (nano-write-file-with-format filename format-choice))
+          (kill-emacs))))))
+
+(defun nano-save-format-menu ()
+  "显示格式选择菜单"
+  (message (concat "Choose format: "
+                   "[U]Unix " 
+                   (if (eq system-type 'windows-nt) "" "[D]DOS ")
+                   (if (eq system-type 'darwin) "" "[M]Mac "))
+                   " C-g:Cancel")
+  (let ((choice (read-char-exclusive)))
+    (cond
+     ((memq choice '(?u ?U)) 'unix)
+     ((and (memq choice '(?d ?D)) (not (eq system-type 'windows-nt))) 'dos)
+     ((and (memq choice '(?m ?M)) (not (eq system-type 'darwin))) 'mac)
+     ((eq choice ?\C-g) nil)
+     (t (nano-save-format-menu)))))
+
+(defun nano-y-n-prompt (prompt chars)
+  "Nano 风格的 y/n 提示"
+  (message "%s" prompt)
+  (let ((choice (read-char-exclusive)))
+    (cond
+     ((memq choice chars) choice)
+     (t (nano-y-n-prompt prompt chars)))))
+
+;; Nano 风格保存文件（Ctrl+O）
+(defun nano-save-buffer ()
+  "Nano 风格的保存流程"
+  (interactive)
+  (let ((file (buffer-file-name)))
+    (if file
+        ;; 已有文件名，直接保存
+        (progn
+          (save-buffer)
+          (message "Wrote %s" file))
+      ;; 没有文件名，询问保存位置
+      (let* ((default-name (buffer-name))
+             (filename (read-string 
+                        (format "File Name to Write: ")
+                        nil nil default-name)))
+        (if (string= filename "")
+            (message "Cancelled")
+          (let ((format-choice (nano-save-format-menu)))
+            (when format-choice
+              (nano-write-file-with-format filename format-choice))))))))
+
+;; ========== Nano 风格快捷键 ==========
+
+;; 禁用 C-x 前缀键，使其可以直接使用
+(global-unset-key (kbd "C-x"))
+
+;; 退出: Ctrl+X (Nano) -> 自定义 Nano 风格退出
+(global-set-key (kbd "C-x") 'nano-save-and-exit)
+
+;; 保存文件: Ctrl+O (Nano) -> nano-save-buffer
+(global-set-key (kbd "C-o") 'nano-save-buffer)
+
+;; 搜索: Ctrl+W (Nano) -> isearch-forward
+(global-set-key (kbd "C-w") 'isearch-forward)
+
+;; 剪切行: Ctrl+K (Nano) -> kill-whole-line (Nano 风格)
+(global-set-key (kbd "C-k") 'kill-whole-line)
+
+;; 粘贴: Ctrl+U (Nano) -> yank
+(global-set-key (kbd "C-u") 'yank)
+
+;; 取消/退出: Ctrl+Q (Nano) -> keyboard-quit
+(global-set-key (kbd "C-q") 'keyboard-quit)
+
+;; 帮助: Ctrl+G (Nano) -> info
+(global-set-key (kbd "C-g") (lambda () (interactive) (info "(emacs) Top")))
+
+;; 显示光标位置: Ctrl+C (Nano) -> what-line / point position
+(global-set-key (kbd "C-c") 'what-line)
+
+;; 跳转行: Ctrl+_ (Nano) -> goto-line
+(global-set-key (kbd "C-_") 'goto-line)
+(global-set-key (kbd "C-/") 'goto-line)  ;; 也绑定 C-/ 作为备选
+
+;; 查找替换: Ctrl+\ (Nano) -> query-replace
+(global-set-key (kbd "C-\\") 'query-replace)
+
+;; 撤销: Alt+U (Nano) -> undo (C-/ 已经是默认绑定)
+(global-set-key (kbd "M-u") 'undo)
+
+;; 删除整行 (可选: 用 C-S-k 作为 Nano 的 kill-ring 风格剪切)
+(global-set-key (kbd "C-S-k") 'kill-ring-save)
+
+;; 开始/结束文件: Home/End 风格 (Nano 用 Ctrl+Q/A)
+(global-set-key (kbd "C-a") 'move-beginning-of-line)  ;; 保留原功能
+(global-set-key (kbd "C-e") 'move-end-of-line)        ;; 保留原功能
+
+;; 页面滚动: Ctrl+Y/V (Nano) -> scroll-up/down
+(global-set-key (kbd "C-y") 'scroll-down-command)     ;; 向上翻页
+(global-set-key (kbd "C-v") 'scroll-up-command)       ;; 向下翻页
+
+;; 左右移单词: Ctrl+Left/Right (Nano) -> forward/backward word
+(global-set-key (kbd "C-<left>") 'backward-word)
+(global-set-key (kbd "C-<right>") 'forward-word)
+
+;; ========== Nano 底部快捷键提示 ==========
+
+;; 自定义 mode-line（顶部状态栏）
+(setq-default mode-line-format
+  '("%e"
+    mode-line-front-space
+    mode-line-mule-info
+    mode-line-client
+    mode-line-modified
+    mode-line-remote
+    mode-line-frame-identification
+    mode-line-buffer-identification
+    "   "
+    mode-line-position
+    "  "
+    (vc-mode vc-mode)
+    "  "
+    mode-line-modes
+    mode-line-misc-info
+    mode-line-end-spaces))
+
+;; 启动时显示快捷键提示
+(add-hook 'emacs-startup-hook
+          (lambda ()
+            (message "^G Help │ ^O Save │ ^W Find │ ^K Cut │ ^U Paste │ ^X Exit")))
+
+;; Nano 风格底部快捷键栏 - 使用 header-line
+(setq-default header-line-format
+  (propertize " ^G Help │ ^O Save │ ^W Find │ ^K Cut │ ^U Paste │ ^X Exit "
+              'face '(:background "grey20" :foreground "white")))
