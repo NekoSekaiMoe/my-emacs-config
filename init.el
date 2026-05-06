@@ -203,13 +203,19 @@
 ;; M-U - Undo
 (global-set-key (kbd "M-u") 'undo)
 
-;; M-E - Redo (使用内置 undo)
+;; M-E - Redo
+;; 在 Emacs 中，undo 记录是循环的
+;; 如果上次命令是 undo，再次 undo 就是 redo
 (defun nano-redo ()
   "重做操作"
   (interactive)
-  (if (eq last-command 'undo)
-      (undo)
-    (message "No further undo information")))
+  (condition-case nil
+      (progn
+        ;; 模拟 undo 的 redo 行为
+        (let ((last-command 'undo))
+          (undo))
+        (message "Redo"))
+    (error (message "No further undo information"))))
 (global-set-key (kbd "M-e") 'nano-redo)
 
 ;; ^X - Exit (退出)
@@ -235,6 +241,10 @@
 (global-set-key (kbd "C-r") 'find-file)
 
 ;; ^\ - Replace (Nano 风格批量替换)
+(defun nano-replace ()
+  "Nano 风格的批量替换"
+  (interactive)
+  (nano-replace-prompt-search))
 (global-set-key (kbd "C-\\") 'nano-replace)
 
 ;; ^U - Paste (粘贴)
@@ -271,7 +281,8 @@
 
 (defun nano-go-to-line-read-choice (original-pos)
   "读取用户选择"
-  (let ((choice (read-event)))
+  (message "^G Help | ^O End | ^W Start | ^V Bottom | ^Y Top | ^T To Text | ^C Cancel")
+  (let ((choice (read-char)))
     (cond
      ;; ^C - 取消
      ((eq choice ?\C-c)
@@ -279,44 +290,37 @@
       (message "Cancelled"))
      ;; ^G - 帮助
      ((eq choice ?\C-g)
-      (message "GoTo: ^C Cancel, ^O End of file, ^W Start of file, ^V Bottom, ^Y Top, ^T To text")
+      (message "GoTo: ^C Cancel, ^O End, ^W Start, ^V Bottom, ^Y Top, ^T To text")
       (nano-go-to-line-read-choice original-pos))
      ;; ^O - 跳转到文件结尾 (End)
      ((eq choice ?\C-o)
       (goto-char (point-max))
       (recenter)
-      (message "^G Help │ ^O End │ ^W Start │ ^V Bottom │ ^Y Top │ ^T To Text │ ^C Cancel")
       (nano-go-to-line-read-choice original-pos))
      ;; ^W - 跳转到文件开头 (Start)
      ((eq choice ?\C-w)
       (goto-char (point-min))
       (recenter)
-      (message "^G Help │ ^O End │ ^W Start │ ^V Bottom │ ^Y Top │ ^T To Text │ ^C Cancel")
       (nano-go-to-line-read-choice original-pos))
      ;; ^V - 跳转到尾行 (Bottom)
      ((eq choice ?\C-v)
       (goto-char (point-max))
       (recenter 0)
-      (message "^G Help │ ^O End │ ^W Start │ ^V Bottom │ ^Y Top │ ^T To Text │ ^C Cancel")
       (nano-go-to-line-read-choice original-pos))
      ;; ^Y - 跳转到首行 (Top)
      ((eq choice ?\C-y)
       (goto-char (point-min))
       (recenter 0)
-      (message "^G Help │ ^O End │ ^W Start │ ^V Bottom │ ^Y Top │ ^T To Text │ ^C Cancel")
       (nano-go-to-line-read-choice original-pos))
      ;; ^T - 跳转到指定文字 (To Text)
      ((eq choice ?\C-t)
       (let ((text (read-string "Go to text: ")))
         (if (string= text "")
-            (progn
-              (message "^G Help │ ^O End │ ^W Start │ ^V Bottom │ ^Y Top │ ^T To Text │ ^C Cancel")
-              (nano-go-to-line-read-choice original-pos))
+            (nano-go-to-line-read-choice original-pos)
           (if (search-forward text nil t)
               (progn
                 (goto-char (match-beginning 0))
                 (recenter)
-                (message "^G Help │ ^O End │ ^W Start │ ^V Bottom │ ^Y Top │ ^T To Text │ ^C Cancel")
                 (nano-go-to-line-read-choice original-pos))
             (message "Not found")
             (nano-go-to-line-read-choice original-pos)))))
@@ -331,17 +335,15 @@
 (defvar nano-search-string nil "当前搜索字符串")
 (defvar nano-search-history nil "搜索历史")
 (defvar nano-search-case nil "是否区分大小写")
-(defvar nano-search-original-pos nil "搜索前位置")
-(defvar nano-search-last-match-end nil "上次匹配结束位置")
+(defvar nano-search-last-match-data nil "上次匹配数据 (start . end)")
 
 (defun nano-search ()
   "Nano 风格的搜索"
   (interactive)
   (if nano-search-string
-      ;; 如果已有搜索字符串，弹出搜索框（显示上次的词），回车后搜索下一个
-      (nano-search-prompt-again)
+      ;; 如果已有搜索字符串，直接搜索下一个
+      (nano-search-find-next)
     ;; 首次搜索，提示输入字符串
-    (setq nano-search-original-pos (point))
     (nano-search-prompt-input)))
 
 (defun nano-search-prompt-input ()
@@ -363,41 +365,29 @@
       (setq nano-search-string input)
       (nano-search-find-first)))))
 
-(defun nano-search-prompt-again ()
-  "再次搜索：显示上次的搜索词，按回车跳到下一个"
-  (let* ((prompt (format "Search [%s]: " nano-search-string))
-         (input (read-string prompt nil 'nano-search-history nano-search-string)))
-    (cond
-     ((string= input "")
-      ;; 按回车，使用上次的搜索词，跳到下一个
-      (nano-search-find-next))
-     (t
-      ;; 输入了新词，重新搜索
-      (setq nano-search-string input)
-      (setq nano-search-original-pos (point))
-      (nano-search-find-first)))))
-
 (defun nano-search-find-first ()
   "查找第一个匹配"
   (let ((case-fold-search (not nano-search-case)))
     (if (search-forward nano-search-string nil t)
         (progn
-          (setq nano-search-last-match-end (match-end 0))
+          (setq nano-search-last-match-data (cons (match-beginning 0) (match-end 0)))
           (goto-char (match-beginning 0))
           (recenter)
           (message "Found"))
-      (goto-char nano-search-original-pos)
       (message "Not found")
       (setq nano-search-string nil))))
 
 (defun nano-search-find-next ()
   "查找下一个匹配，支持 wrap"
-  (let ((case-fold-search (not nano-search-case)))
-    ;; 从上次匹配结束位置的下一个字符开始搜索
-    (goto-char (1+ nano-search-last-match-end))
-    (if (search-forward nano-search-string nil t)
+  (let ((case-fold-search (not nano-search-case))
+        (found nil))
+    ;; 从上次匹配结束位置之后开始搜索
+    (when nano-search-last-match-data
+      (goto-char (cdr nano-search-last-match-data))
+      (setq found (search-forward nano-search-string nil t)))
+    (if found
         (progn
-          (setq nano-search-last-match-end (match-end 0))
+          (setq nano-search-last-match-data (cons (match-beginning 0) (match-end 0)))
           (goto-char (match-beginning 0))
           (recenter)
           (message "Found"))
@@ -405,40 +395,14 @@
       (goto-char (point-min))
       (if (search-forward nano-search-string nil t)
           (progn
-            (setq nano-search-last-match-end (match-end 0))
+            (setq nano-search-last-match-data (cons (match-beginning 0) (match-end 0)))
             (goto-char (match-beginning 0))
             (recenter)
             (message "Search wrapped"))
-        (goto-char nano-search-original-pos)
         (message "Not found")
         (setq nano-search-string nil)))))
 
-(defun nano-search-find-prev ()
-  "查找上一个匹配"
-  (let ((case-fold-search (not nano-search-case)))
-    (if (search-backward nano-search-string nil t)
-        (progn
-          (setq nano-search-match-start (match-beginning 0))
-          (setq nano-search-match-end (match-end 0))
-          (goto-char nano-search-match-start)
-          (recenter)
-          (nano-search-cleanup)
-          (message "Found"))
-      (goto-char nano-search-original-pos)
-      (message "Not found")
-      (nano-search-cleanup))))
 
-(defun nano-search-cleanup ()
-  "清理搜索状态"
-  (when nano-search-overlay
-    (delete-overlay nano-search-overlay)
-    (setq nano-search-overlay nil))
-  (setq nano-search-string nil
-        nano-search-case nil
-        nano-search-regex nil
-        nano-search-backward nil
-        nano-search-match-start nil
-        nano-search-match-end nil))
 
 ;; ========== Nano 风格批量替换 ==========
 
@@ -449,11 +413,6 @@
 (defvar nano-replace-regex nil "是否使用正则表达式")
 (defvar nano-replace-backward nil "是否向后搜索")
 (defvar nano-replace-history nil "搜索历史")
-
-(defun nano-replace ()
-  "Nano 风格的批量替换"
-  (interactive)
-  (nano-replace-prompt-search))
 
 (defun nano-replace-prompt-search ()
   "第一步：输入搜索字符串"
@@ -500,6 +459,7 @@
 
 (defun nano-replace-read-choice ()
   "读取用户选择"
+  (message "Replace this? (Y/n/A/^P/^N/M-C/M-R/M-B/^G/^C)")
   (let ((choice (read-char)))
     (cond
      ;; Y - 替换这个
@@ -512,36 +472,29 @@
      ;; A - 全部替换
      ((eq choice ?A)
       (nano-replace-all))
-     ;; ^ (C-/) - 跳转到指定位置
-     ((eq choice ?\C-/)
-      (nano-replace-goto-line))
-     ;; P - 更旧的匹配（向后）
-     ((memq choice '(?p ?P))
+     ;; ^P - 更旧的匹配（向后）
+     ((eq choice ?\C-p)
       (nano-replace-prev-match))
      ;; ^N - 更新的匹配（向前）
      ((eq choice ?\C-n)
       (nano-replace-find-next))
-     ;; M-C - 切换区分大小写 (ESC c)
+     ;; M-C - 切换区分大小写
      ((eq choice ?\M-c)
       (setq nano-replace-case (not nano-replace-case))
       (message "Case sensitive: %s" (if nano-replace-case "ON" "OFF"))
       (nano-replace-read-choice))
-     ;; M-R - 切换正则表达式 (ESC r)
+     ;; M-R - 切换正则表达式
      ((eq choice ?\M-r)
       (setq nano-replace-regex (not nano-replace-regex))
       (message "Regex: %s" (if nano-replace-regex "ON" "OFF"))
       (nano-replace-read-choice))
-     ;; M-B - 切换向后搜索 (ESC b)
+     ;; M-B - 切换向后搜索
      ((eq choice ?\M-b)
       (setq nano-replace-backward (not nano-replace-backward))
-      (message "Search direction: %s" (if nano-replace-backward "BACKWARD" "FORWARD"))
+      (message "Direction: %s" (if nano-replace-backward "BACKWARD" "FORWARD"))
       (nano-replace-read-choice))
-     ;; ^G - 取消
-     ((eq choice ?\C-g)
-      (nano-replace-cleanup)
-      (message "Cancelled"))
-     ;; ^C - 取消
-     ((eq choice ?\C-c)
+     ;; ^G 或 ^C - 取消
+     ((or (eq choice ?\C-g) (eq choice ?\C-c))
       (nano-replace-cleanup)
       (message "Cancelled"))
      (t
@@ -641,10 +594,10 @@
 
 ;; 底部快捷键栏
 (setq-default mode-line-format
-  '((:eval (propertize " ^G Help │ ^O Write Out │ ^W Where Is │ ^K Cut │ ^T Execute │ ^C Location │ ^6 Mark Set "
+  '((:eval (propertize " ^G Help | ^O Write Out | ^W Where Is | ^K Cut | ^T Execute | ^C Location | ^6 Mark Set "
                        'face '(:background "grey20" :foreground "white")))
     (:eval (propertize " " 'display (raise 0.3)))
-    (:eval (propertize " ^X Exit │ ^R Read File │ ^\\ Replace │ ^U Paste │ ^J Justify │ ^/ Go To Line │ M-U Undo "
+    (:eval (propertize " ^X Exit | ^R Read File | ^\\ Replace | ^U Paste | ^J Justify | ^/ Go To Line | M-U Undo "
                        'face '(:background "grey20" :foreground "white")))))
 
 ;; 启动时显示快捷键提示
