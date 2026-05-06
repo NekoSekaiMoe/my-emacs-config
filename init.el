@@ -72,10 +72,40 @@
  dired-listing-switches "-vha" ;;  dired 列出文件的参数（man ls）
  show-paren-style 'parenthesis ;; 括号匹配时高亮显示另一边的括号，而不是跳到另一个括号处
  undo-limit 80000000           ;; 提升撤销限制
- auto-save-default t           ;; 打开自动保存
  truncate-string-ellipsis "…"  ;; Unicode ellispis are nicer than "...", and also save /precious/ space
  ;; 当寻找一个同名的文件,改变两个buffer的名字,前面加上目录名
  uniquify-buffer-name-style 'post-forward-angle-brackets)
+
+;; Nano 风格的备份文件 (.xxx.swp)
+(setq make-backup-files t                    ;; 启用备份
+      backup-by-copying t                    ;; 复制备份
+      backup-directory-alist '(("." . "."))   ;; 备份文件放在原文件目录
+      delete-old-versions t                  ;; 删除旧版本
+      kept-new-versions 3                    ;; 保留3个新版本
+      kept-old-versions 2                    ;; 保留2个旧版本
+      version-control t                      ;; 版本控制
+      vc-make-backup-files t)                ;; VC 文件也备份
+
+;; 生成 .xxx.swp 格式的备份文件
+(setq backup-directory-alist nil)  ;; 备份文件与原文件同目录
+
+(defun nano-make-backup-file-name (filename)
+  "生成 Nano 风格的 .xxx.swp 备份文件名"
+  (let ((dirname (file-name-directory filename))
+        (basename (file-name-nondirectory filename)))
+    (expand-file-name (concat "." basename ".swp") dirname)))
+
+(setq make-backup-file-name-function 'nano-make-backup-file-name)
+
+;; 退出时删除 swp 文件
+(add-hook 'kill-emacs-hook
+          (lambda ()
+            (dolist (buf (buffer-list))
+              (with-current-buffer buf
+                (when buffer-file-name
+                  (let ((swp-file (nano-make-backup-file-name buffer-file-name)))
+                    (when (file-exists-p swp-file)
+                      (delete-file swp-file))))))))
 
 ;; 禁用所有 UI 元素
 (menu-bar-mode -1)                ;; 取消菜单栏
@@ -173,8 +203,14 @@
 ;; M-U - Undo
 (global-set-key (kbd "M-u") 'undo)
 
-;; M-E - Redo (使用 undo-tree 或内置 undo)
-(global-set-key (kbd "M-e") 'undo-redo)
+;; M-E - Redo (使用内置 undo)
+(defun nano-redo ()
+  "重做操作"
+  (interactive)
+  (if (eq last-command 'undo)
+      (undo)
+    (message "No further undo information")))
+(global-set-key (kbd "M-e") 'nano-redo)
 
 ;; ^X - Exit (退出)
 (defun nano-exit ()
@@ -207,18 +243,86 @@
 ;; ^J - Justify (对齐)
 (global-set-key (kbd "C-j") 'fill-paragraph)
 
-;; ^/ - Go To Line (跳转到指定行和列)
+;; ^/ - Go To Line (Nano 风格跳转)
 (defun nano-go-to-line ()
-  "跳转到指定行和列（格式：行,列 或 仅行）"
+  "Nano 风格的跳转到指定位置"
   (interactive)
-  (let* ((input (read-string "Go to line (column): "))
-         (parts (split-string input ",")))
-    (if (= (length parts) 2)
-        (progn
-          (goto-char (point-min))
-          (forward-line (1- (string-to-number (car parts))))
-          (move-to-column (string-to-number (cadr parts))))
-      (goto-line (string-to-number (car parts))))))
+  (let ((original-pos (point)))
+    (nano-go-to-line-prompt original-pos)))
+
+(defun nano-go-to-line-prompt (original-pos)
+  "提示输入跳转位置"
+  (let ((input (read-string "Go to line (column): ")))
+    (cond
+     ((string= input "")
+      (message "Cancelled"))
+     (t
+      (let* ((parts (split-string input ","))
+             (line (string-to-number (car parts)))
+             (col (if (= (length parts) 2)
+                      (string-to-number (cadr parts))
+                    0)))
+        (goto-char (point-min))
+        (forward-line (1- line))
+               (move-to-column col)
+        (recenter)
+        (message "^G Help │ ^O End │ ^W Start │ ^V Bottom │ ^Y Top │ ^T To Text │ ^C Cancel")
+        (nano-go-to-line-read-choice original-pos))))))
+
+(defun nano-go-to-line-read-choice (original-pos)
+  "读取用户选择"
+  (let ((choice (read-event)))
+    (cond
+     ;; ^C - 取消
+     ((eq choice ?\C-c)
+      (goto-char original-pos)
+      (message "Cancelled"))
+     ;; ^G - 帮助
+     ((eq choice ?\C-g)
+      (message "GoTo: ^C Cancel, ^O End of file, ^W Start of file, ^V Bottom, ^Y Top, ^T To text")
+      (nano-go-to-line-read-choice original-pos))
+     ;; ^O - 跳转到文件结尾 (End)
+     ((eq choice ?\C-o)
+      (goto-char (point-max))
+      (recenter)
+      (message "^G Help │ ^O End │ ^W Start │ ^V Bottom │ ^Y Top │ ^T To Text │ ^C Cancel")
+      (nano-go-to-line-read-choice original-pos))
+     ;; ^W - 跳转到文件开头 (Start)
+     ((eq choice ?\C-w)
+      (goto-char (point-min))
+      (recenter)
+      (message "^G Help │ ^O End │ ^W Start │ ^V Bottom │ ^Y Top │ ^T To Text │ ^C Cancel")
+      (nano-go-to-line-read-choice original-pos))
+     ;; ^V - 跳转到尾行 (Bottom)
+     ((eq choice ?\C-v)
+      (goto-char (point-max))
+      (recenter 0)
+      (message "^G Help │ ^O End │ ^W Start │ ^V Bottom │ ^Y Top │ ^T To Text │ ^C Cancel")
+      (nano-go-to-line-read-choice original-pos))
+     ;; ^Y - 跳转到首行 (Top)
+     ((eq choice ?\C-y)
+      (goto-char (point-min))
+      (recenter 0)
+      (message "^G Help │ ^O End │ ^W Start │ ^V Bottom │ ^Y Top │ ^T To Text │ ^C Cancel")
+      (nano-go-to-line-read-choice original-pos))
+     ;; ^T - 跳转到指定文字 (To Text)
+     ((eq choice ?\C-t)
+      (let ((text (read-string "Go to text: ")))
+        (if (string= text "")
+            (progn
+              (message "^G Help │ ^O End │ ^W Start │ ^V Bottom │ ^Y Top │ ^T To Text │ ^C Cancel")
+              (nano-go-to-line-read-choice original-pos))
+          (if (search-forward text nil t)
+              (progn
+                (goto-char (match-beginning 0))
+                (recenter)
+                (message "^G Help │ ^O End │ ^W Start │ ^V Bottom │ ^Y Top │ ^T To Text │ ^C Cancel")
+                (nano-go-to-line-read-choice original-pos))
+            (message "Not found")
+            (nano-go-to-line-read-choice original-pos)))))
+     (t
+      (nano-go-to-line-read-choice original-pos)))))
+
 (global-set-key (kbd "C-/") 'nano-go-to-line)
 
 ;; ========== Nano 风格搜索 ==========
@@ -284,7 +388,7 @@
 
 (defun nano-search-read-choice ()
   "读取用户选择"
-  (let ((choice (read-event)))
+  (let ((choice (read-char)))
     (cond
      ;; ^C - 取消
      ((eq choice ?\C-c)
@@ -295,7 +399,7 @@
      ((eq choice ?\C-g)
       (message "Search commands: ^C Cancel, M-C Case, M-B Backward, ^P Prev, ^N Next, M-R Regex, ^R Replace, ^T GoTo")
       (nano-search-read-choice))
-     ;; M-C - 切换区分大小写 (使用 escape 序列)
+     ;; M-C - 切换区分大小写
      ((eq choice ?\M-c)
       (setq nano-search-case (not nano-search-case))
       (message "Case sensitive: %s" (if nano-search-case "ON" "OFF"))
@@ -442,7 +546,7 @@
 
 (defun nano-replace-read-choice ()
   "读取用户选择"
-  (let ((choice (read-event)))
+  (let ((choice (read-char)))
     (cond
      ;; Y - 替换这个
      ((memq choice '(?y ?Y ?\s ?\r))
@@ -463,23 +567,27 @@
      ;; ^N - 更新的匹配（向前）
      ((eq choice ?\C-n)
       (nano-replace-find-next))
-     ;; M-C - 切换区分大小写
-     ((eq choice ?\C-c)
+     ;; M-C - 切换区分大小写 (ESC c)
+     ((eq choice ?\M-c)
       (setq nano-replace-case (not nano-replace-case))
       (message "Case sensitive: %s" (if nano-replace-case "ON" "OFF"))
       (nano-replace-read-choice))
-     ;; M-R - 切换正则表达式
-     ((eq choice ?\C-r)
+     ;; M-R - 切换正则表达式 (ESC r)
+     ((eq choice ?\M-r)
       (setq nano-replace-regex (not nano-replace-regex))
       (message "Regex: %s" (if nano-replace-regex "ON" "OFF"))
       (nano-replace-read-choice))
-     ;; M-B - 切换向后搜索
-     ((eq choice ?\C-b)
+     ;; M-B - 切换向后搜索 (ESC b)
+     ((eq choice ?\M-b)
       (setq nano-replace-backward (not nano-replace-backward))
       (message "Search direction: %s" (if nano-replace-backward "BACKWARD" "FORWARD"))
       (nano-replace-read-choice))
-     ;; ^G 或 ^C - 取消
-     ((memq choice '(?\C-g ?\C-c))
+     ;; ^G - 取消
+     ((eq choice ?\C-g)
+      (nano-replace-cleanup)
+      (message "Cancelled"))
+     ;; ^C - 取消
+     ((eq choice ?\C-c)
       (nano-replace-cleanup)
       (message "Cancelled"))
      (t
