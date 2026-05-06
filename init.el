@@ -364,7 +364,7 @@
       (nano-search-find-first)))))
 
 (defun nano-search-find-first ()
-  "查找第一个匹配"
+  "查找第一个匹配，找到后直接退出搜索模式"
   (let ((case-fold-search (not nano-search-case)))
     (if (search-forward nano-search-string nil t)
         (progn
@@ -372,9 +372,8 @@
           (setq nano-search-match-end (match-end 0))
           (goto-char nano-search-match-start)
           (recenter)
-          (nano-search-highlight)
-          (message "^G Help │ M-C Case │ M-B Backward │ ^P Prev │ ^T GoTo │ M-R Regex │ ^R Replace │ ^N Next │ ^C Cancel")
-          (nano-search-read-choice))
+          (nano-search-cleanup)
+          (message "Found"))
       (goto-char nano-search-original-pos)
       (message "Not found")
       (nano-search-cleanup))))
@@ -386,49 +385,6 @@
   (setq nano-search-overlay (make-overlay nano-search-match-start nano-search-match-end))
   (overlay-put nano-search-overlay 'face 'highlight))
 
-(defun nano-search-read-choice ()
-  "读取用户选择"
-  (let ((choice (read-char)))
-    (cond
-     ;; ^C - 取消
-     ((eq choice ?\C-c)
-      (nano-search-cleanup)
-      (goto-char nano-search-original-pos)
-      (message "Cancelled"))
-     ;; ^G - 帮助
-     ((eq choice ?\C-g)
-      (message "Search commands: ^C Cancel, M-C Case, M-B Backward, ^P Prev, ^N Next, M-R Regex, ^R Replace, ^T GoTo")
-      (nano-search-read-choice))
-     ;; M-C - 切换区分大小写
-     ((eq choice ?\M-c)
-      (setq nano-search-case (not nano-search-case))
-      (message "Case sensitive: %s" (if nano-search-case "ON" "OFF"))
-      (nano-search-read-choice))
-     ;; M-R - 切换正则表达式
-     ((eq choice ?\M-r)
-      (setq nano-search-regex (not nano-search-regex))
-      (message "Regex: %s" (if nano-search-regex "ON" "OFF"))
-      (nano-search-read-choice))
-     ;; M-B - 切换向后搜索
-     ((eq choice ?\M-b)
-      (setq nano-search-backward (not nano-search-backward))
-      (message "Direction: %s" (if nano-search-backward "BACKWARD" "FORWARD"))
-      (nano-search-read-choice))
-     ;; ^P - 更旧的匹配（向后）
-     ((eq choice ?\C-p)
-      (nano-search-find-prev))
-     ;; ^N - 更新的匹配（向前）
-     ((eq choice ?\C-n)
-      (nano-search-find-next))
-     ;; ^T - 跳转到指定行
-     ((eq choice ?\C-t)
-      (nano-search-goto-line))
-     ;; ^R - 进入替换模式
-     ((eq choice ?\C-r)
-      (nano-search-to-replace))
-     (t
-      (nano-search-read-choice)))))
-
 (defun nano-search-find-next ()
   "查找下一个匹配"
   (let ((case-fold-search (not nano-search-case)))
@@ -438,11 +394,11 @@
           (setq nano-search-match-end (match-end 0))
           (goto-char nano-search-match-start)
           (recenter)
-          (nano-search-highlight)
-          (message "^G Help │ M-C Case │ M-B Backward │ ^P Prev │ ^T GoTo │ M-R Regex │ ^R Replace │ ^N Next │ ^C Cancel")
-          (nano-search-read-choice))
-      (message "No more matches forward")
-      (nano-search-read-choice))))
+          (nano-search-cleanup)
+          (message "Found"))
+      (goto-char nano-search-original-pos)
+      (message "Not found")
+      (nano-search-cleanup))))
 
 (defun nano-search-find-prev ()
   "查找上一个匹配"
@@ -453,26 +409,26 @@
           (setq nano-search-match-end (match-end 0))
           (goto-char nano-search-match-start)
           (recenter)
-          (nano-search-highlight)
-          (message "^G Help │ M-C Case │ M-B Backward │ ^P Prev │ ^T GoTo │ M-R Regex │ ^R Replace │ ^N Next │ ^C Cancel")
-          (nano-search-read-choice))
-      (message "No more matches backward")
-      (nano-search-read-choice))))
+          (nano-search-cleanup)
+          (message "Found"))
+      (goto-char nano-search-original-pos)
+      (message "Not found")
+      (nano-search-cleanup))))
 
-(defun nano-search-goto-line ()
-  "跳转到指定行"
-  (let ((line (read-number "Go to line: ")))
-    (goto-char (point-min))
-    (forward-line (1- line)))
-  (message "^G Help │ M-C Case │ M-B Backward │ ^P Prev │ ^T GoTo │ M-R Regex │ ^R Replace │ ^N Next │ ^C Cancel")
-  (nano-search-read-choice))
-
-(defun nano-search-to-replace ()
-  "从搜索模式进入替换模式"
-  (let ((search-str nano-search-string))
-    (nano-search-cleanup)
-    (setq nano-replace-search search-str)
-    (nano-replace-prompt-replace)))
+(defun nano-search-find-prev ()
+  "查找上一个匹配"
+  (let ((case-fold-search (not nano-search-case)))
+    (if (search-backward nano-search-string nil t)
+        (progn
+          (setq nano-search-match-start (match-beginning 0))
+          (setq nano-search-match-end (match-end 0))
+          (goto-char nano-search-match-start)
+          (recenter)
+          (nano-search-cleanup)
+          (message "Found"))
+      (goto-char nano-search-original-pos)
+      (message "Not found")
+      (nano-search-cleanup))))
 
 (defun nano-search-cleanup ()
   "清理搜索状态"
