@@ -357,6 +357,7 @@
         (message "Not found")))))
 
 (global-set-key (kbd "C-/") 'nano-go-to-line)
+(global-set-key (kbd "C-_") 'nano-go-to-line)
 
 ;; ========== Nano 风格搜索 ==========
 
