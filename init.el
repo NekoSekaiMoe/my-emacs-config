@@ -639,16 +639,24 @@
 
 ;; ========== Nano 风格界面 ==========
 
-;; 顶部标题栏 - 显示 "Emacs" 和缓冲区名称，修改后显示星号
+;; 顶部标题栏 - 左: Emacs 版本号，中: 文件名居中（修改后加星号）
 (setq-default header-line-format
   '((:eval
-     (let* ((name (buffer-name))
-            (modified (if (buffer-modified-p) " *" " "))
-            (text (format " Emacs  %s%s" name modified))
+     (let* ((left (format " Emacs %s" emacs-version))
+            (name (buffer-name))
+            (star (if (buffer-modified-p) "*" ""))
+            (right "")
             (width (window-width))
-            (pad (max 0 (/ (- width (length text)) 2))))
-       (propertize (concat (make-string pad ?\s) text)
-                   'face '(:background "grey20" :foreground "white"))))))
+            (mid-start (/ (+ (length left) (- width (length name) (length right))) 2))
+            (mid-pad (max 0 (- mid-start (length left))))
+            (right-pad (max 0 (- width mid-start (length name) (length right)))))
+       (propertize
+        (concat left
+                (make-string mid-pad ?\s)
+                name star
+                (make-string right-pad ?\s)
+                right)
+        'face '(:background "grey20" :foreground "white"))))))
 
 ;; ========== 自动补全与语法检查 ==========
 
