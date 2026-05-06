@@ -1,4 +1,4 @@
-(defun copy-from-osx ()
+x(defun copy-from-osx ()
   (shell-command-to-string "pbpaste"))
 
 (defun paste-to-osx (text &optional push)
@@ -17,6 +17,7 @@
  ((memq window-system '(win32 pc))
   (setq select-enable-primary t
         select-enable-clipboard t
+        save-interprogram-paste-before-kill t)))
         save-interprogram-paste-before-kill t)))
 
 ;; 中文显示
