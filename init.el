@@ -488,35 +488,21 @@
 ;; ^\ 替换模式 - 使用 overriding-local-map
 (defvar nano-replace--active nil)
 
-(defvar nano-replace-keymap
-  (let ((map (make-sparse-keymap)))
-    (define-key map "y" #'nano-replace-yes)
-    (define-key map "Y" #'nano-replace-yes)
-    (define-key map " " #'nano-replace-yes)
-    (define-key map "\r" #'nano-replace-yes)
-    (define-key map "n" #'nano-replace-no)
-    (define-key map "a" #'nano-replace-do-all)
-    (define-key map "A" #'nano-replace-do-all)
-    (define-key map (kbd "C-c") #'nano-replace-cancel)
-    (define-key map (kbd "C-g") #'nano-replace-cancel)
-    (define-key map (kbd "C-p") #'nano-replace-find-prev)
-    (define-key map (kbd "C-n") #'nano-replace-find-next)
-    (define-key map (kbd "M-c") #'nano-replace-toggle-case)
-    (define-key map (kbd "M-r") #'nano-replace-toggle-regex)
-    (define-key map (kbd "M-b") #'nano-replace-toggle-backward)
-    map)
-  "Keymap for nano replace mode")
+;; 先定义所有被 keymap 引用的函数，再定义 keymap（defvar 只初始化一次）
 
-(defun nano-replace-activate-keymap ()
-  "使用 overriding-local-map 激活局部按键映射"
-  (setq nano-replace--active t)
-   (setq overriding-local-map nano-replace-keymap)
-   (message "Replace this? (Y/n/A/^P/^N/M-C/M-R/M-B/^C/^G)"))
-
-(defun nano-replace-deactivate-keymap ()
-  "停用局部按键映射"
-  (setq nano-replace--active nil)
-  (setq overriding-local-map nil))
+(defun nano-replace-do-all ()
+  "全部替换"
+  (interactive)
+  (save-excursion
+    (goto-char (point-min))
+    (let ((count 0)
+          (case-fold-search (not nano-replace-case)))
+      (while (search-forward nano-replace-search nil t)
+        (replace-match nano-replace-replace)
+        (setq count (1+ count)))
+      (message "Replaced %d occurrences" count)))
+  (nano-replace-deactivate-keymap)
+  (nano-replace-cleanup))
 
 (defun nano-replace-yes ()
   "替换这个匹配"
@@ -528,49 +514,6 @@
   "跳过这个匹配"
   (interactive)
   (nano-replace-find-next))
-
-(defun nano-replace-all ()
-  "全部替换"
-  (interactive)
-  (nano-replace-do-all))
-
-(defun nano-replace-prev ()
-  "上一个匹配"
-  (interactive)
-  (nano-replace-find-prev))
-
-(defun nano-replace-next ()
-  "下一个匹配"
-  (interactive)
-  (nano-replace-find-next))
-
-(defun nano-replace-toggle-case ()
-  "切换区分大小写"
-  (interactive)
-  (setq nano-replace-case (not nano-replace-case))
-  (message "Case sensitive: %s" (if nano-replace-case "ON" "OFF"))
-  (nano-replace-activate-keymap))
-
-(defun nano-replace-toggle-regex ()
-  "切换正则表达式"
-  (interactive)
-  (setq nano-replace-regex (not nano-replace-regex))
-  (message "Regex: %s" (if nano-replace-regex "ON" "OFF"))
-  (nano-replace-activate-keymap))
-
-(defun nano-replace-toggle-backward ()
-  "切换向后搜索"
-  (interactive)
-  (setq nano-replace-backward (not nano-replace-backward))
-  (message "Direction: %s" (if nano-replace-backward "BACKWARD" "FORWARD"))
-  (nano-replace-activate-keymap))
-
-(defun nano-replace-cancel ()
-  "取消替换"
-  (interactive)
-  (nano-replace-deactivate-keymap)
-  (nano-replace-cleanup)
-  (message "Cancelled"))
 
 (defun nano-replace-this ()
   "替换当前匹配"
@@ -614,19 +557,64 @@
       (message "No previous occurrences")
       (nano-replace-activate-keymap))))
 
-(defun nano-replace-do-all ()
-  "全部替换"
+(defun nano-replace-cancel ()
+  "取消替换"
   (interactive)
-  (save-excursion
-    (goto-char (point-min))
-    (let ((count 0)
-          (case-fold-search (not nano-replace-case)))
-      (while (search-forward nano-replace-search nil t)
-        (replace-match nano-replace-replace)
-        (setq count (1+ count)))
-      (message "Replaced %d occurrences" count)))
   (nano-replace-deactivate-keymap)
-  (nano-replace-cleanup))
+  (nano-replace-cleanup)
+  (message "Cancelled"))
+
+(defun nano-replace-toggle-case ()
+  "切换区分大小写"
+  (interactive)
+  (setq nano-replace-case (not nano-replace-case))
+  (message "Case sensitive: %s" (if nano-replace-case "ON" "OFF"))
+  (nano-replace-activate-keymap))
+
+(defun nano-replace-toggle-regex ()
+  "切换正则表达式"
+  (interactive)
+  (setq nano-replace-regex (not nano-replace-regex))
+  (message "Regex: %s" (if nano-replace-regex "ON" "OFF"))
+  (nano-replace-activate-keymap))
+
+(defun nano-replace-toggle-backward ()
+  "切换向后搜索"
+  (interactive)
+  (setq nano-replace-backward (not nano-replace-backward))
+  (message "Direction: %s" (if nano-replace-backward "BACKWARD" "FORWARD"))
+  (nano-replace-activate-keymap))
+
+(defvar nano-replace-keymap
+  (let ((map (make-sparse-keymap)))
+    (define-key map "y" #'nano-replace-yes)
+    (define-key map "Y" #'nano-replace-yes)
+    (define-key map " " #'nano-replace-yes)
+    (define-key map "\r" #'nano-replace-yes)
+    (define-key map "n" #'nano-replace-no)
+    (define-key map "N" #'nano-replace-no)
+    (define-key map "a" #'nano-replace-do-all)
+    (define-key map "A" #'nano-replace-do-all)
+    (define-key map (kbd "C-c") #'nano-replace-cancel)
+    (define-key map (kbd "C-g") #'nano-replace-cancel)
+    (define-key map (kbd "C-p") #'nano-replace-find-prev)
+    (define-key map (kbd "C-n") #'nano-replace-find-next)
+    (define-key map (kbd "M-c") #'nano-replace-toggle-case)
+    (define-key map (kbd "M-r") #'nano-replace-toggle-regex)
+    (define-key map (kbd "M-b") #'nano-replace-toggle-backward)
+    map)
+  "Keymap for nano replace mode")
+
+(defun nano-replace-activate-keymap ()
+  "使用 overriding-local-map 激活局部按键映射"
+  (setq nano-replace--active t)
+  (setq overriding-local-map nano-replace-keymap)
+  (message "Replace this? (Y/n/A/^P/^N/M-C/M-R/M-B/^C/^G)"))
+
+(defun nano-replace-deactivate-keymap ()
+  "停用局部按键映射"
+  (setq nano-replace--active nil)
+  (setq overriding-local-map nil))
 
 (defun nano-replace-cleanup ()
   "清理替换状态"
