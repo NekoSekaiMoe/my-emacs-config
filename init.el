@@ -145,11 +145,11 @@
 ;; 禁用 C-x 前缀键
 (global-unset-key (kbd "C-x"))
 
-;; 标记状态变量
-(defvar nano-mark-active nil "标记是否激活")
+;; ^G - 恢复为键盘中断（Emacs 最基本的中断能力）
+(global-set-key (kbd "C-g") 'keyboard-quit)
 
-;; ^G - Help
-(global-set-key (kbd "C-g") (lambda () (interactive) (info "(emacs) Top")))
+;; 帮助绑定到 C-?
+(global-set-key (kbd "C-?") (lambda () (interactive) (info "(emacs) Top")))
 
 ;; ^O - Write Out (保存)
 (defun nano-write-out ()
@@ -185,38 +185,14 @@
   (message "Line %d, Column %d" (line-number-at-pos) (current-column)))
 (global-set-key (kbd "C-c") 'nano-location)
 
-;; ^6 - 标记设定/解除 (Mark Set/Clear)
-(defun nano-mark-toggle ()
-  "切换标记状态：按一次设定标记，再按一次解除"
-  (interactive)
-  (if nano-mark-active
-      (progn
-        (setq nano-mark-active nil)
-        (deactivate-mark)
-        (message "Mark cleared"))
-    (progn
-      (setq nano-mark-active t)
-      (set-mark (point))
-      (message "Mark set"))))
-(global-set-key (kbd "C-6") 'nano-mark-toggle)
+;; ^6 - 标记设定/解除 (使用原生 set-mark-command，支持区域高亮)
+(global-set-key (kbd "C-6") 'set-mark-command)
 
 ;; M-U - Undo
 (global-set-key (kbd "M-u") 'undo)
 
-;; M-E - Redo
-;; 在 Emacs 中，undo 记录是循环的
-;; 如果上次命令是 undo，再次 undo 就是 redo
-(defun nano-redo ()
-  "重做操作"
-  (interactive)
-  (condition-case nil
-      (progn
-        ;; 模拟 undo 的 redo 行为
-        (let ((last-command 'undo))
-          (undo))
-        (message "Redo"))
-    (error (message "No further undo information"))))
-(global-set-key (kbd "M-e") 'nano-redo)
+;; M-E - Redo (Emacs 28+ 内置 undo-redo)
+(global-set-key (kbd "M-e") 'undo-redo)
 
 ;; ^X - Exit (退出)
 (defun nano-exit ()
@@ -296,11 +272,21 @@
     map)
   "Keymap for nano go-to-line mode")
 
+(defun nano--safe-activate-keymap (keymap active-var on-exit-fn message-text)
+  "安全激活临时 keymap，防止多个临时模式冲突"
+  (when overriding-local-map
+    (message "Another temporary mode is active, cancel it first"))
+  (setq overriding-local-map keymap)
+  (funcall active-var t)
+  (message message-text))
+
 (defun nano-go-to-line-activate-keymap ()
   "使用 overriding-local-map 激活局部按键映射"
-  (setq nano-go-to-line--active t)
-  (setq overriding-local-map nano-go-to-line-keymap)
-  (message "^G Help | ^O End | ^W Start | ^V Bottom | ^Y Top | ^T To Text | ^C Cancel"))
+  (nano--safe-activate-keymap
+   nano-go-to-line-keymap
+   (lambda (v) (setq nano-go-to-line--active v))
+   'nano-go-to-line-deactivate-keymap
+   "^G Help | ^O End | ^W Start | ^V Bottom | ^Y Top | ^T To Text | ^C Cancel"))
 
 (defun nano-go-to-line-deactivate-keymap ()
   "停用局部按键映射"
@@ -344,17 +330,16 @@
   (recenter 0))
 
 (defun nano-go-to-line-to-text ()
-  "跳转到指定文字"
+  "跳转到指定文字，执行后自动退出跳转模式"
   (interactive)
-  ;; 临时恢复全局映射以读取输入
   (let ((text (read-string "Go to text: ")))
-    (if (string= text "")
-        (message "Cancelled")
-      (if (search-forward text nil t)
-          (progn
-            (goto-char (match-beginning 0))
-            (recenter))
-        (message "Not found")))))
+    (cond
+     ((string= text "") (message "Cancelled"))
+     ((search-forward text nil t)
+      (goto-char (match-beginning 0))
+      (recenter)
+      (nano-go-to-line-deactivate-keymap))
+     (t (message "Not found")))))
 
 (global-set-key (kbd "C-/") 'nano-go-to-line)
 (global-set-key (kbd "C-_") 'nano-go-to-line)
@@ -366,6 +351,16 @@
 (defvar nano-search-history nil "搜索历史")
 (defvar nano-search-case nil "是否区分大小写")
 (defvar nano-search-last-match-data nil "上次匹配数据 (start . end)")
+
+;; 搜索大小写切换
+(defun nano-search-toggle-case ()
+  "切换搜索大小写敏感"
+  (interactive)
+  (setq nano-search-case (not nano-search-case))
+  (message "Case sensitive: %s" (if nano-search-case "ON" "OFF"))
+  (when nano-search-string
+    (nano-search-find-first)))
+(global-set-key (kbd "M-c") 'nano-search-toggle-case)
 
 (defun nano-search ()
   "Nano 风格的搜索"
@@ -465,10 +460,15 @@
     (setq nano-replace-replace (read-string prompt)))
   (nano-replace-execute))
 
+(defun nano-replace--search-func ()
+  "根据正则开关返回搜索函数"
+  (if nano-replace-regex 're-search-forward 'search-forward))
+
 (defun nano-replace-execute ()
   "执行替换，显示第一个匹配并等待用户操作"
-  (let ((case-fold-search (not nano-replace-case)))
-    (if (search-forward nano-replace-search nil t)
+  (let ((case-fold-search (not nano-replace-case))
+        (search-func (nano-replace--search-func)))
+    (if (funcall search-func nano-replace-search nil t)
         (progn
           (setq nano-replace-match-start (match-beginning 0))
           (setq nano-replace-match-end (match-end 0))
@@ -517,44 +517,46 @@
   (nano-replace-find-next))
 
 (defun nano-replace-this ()
-  "替换当前匹配"
+  "替换当前匹配，使用 replace-match 避免位置错误"
   (when nano-replace-overlay
     (delete-overlay nano-replace-overlay)
     (setq nano-replace-overlay nil))
-  (delete-region nano-replace-match-start nano-replace-match-end)
   (goto-char nano-replace-match-start)
-  (insert nano-replace-replace)
-  (setq nano-replace-match-end (+ nano-replace-match-start
-                                   (length nano-replace-replace))))
+  (replace-match nano-replace-replace (not nano-replace-case) nano-replace-regex)
+  (setq nano-replace-match-end (point)))
+
+(defun nano-replace--find (direction)
+  "根据方向查找匹配，支持正则。direction 为 'forward 或 'backward"
+  (let* ((case-fold-search (not nano-replace-case))
+         (search-func
+          (if nano-replace-regex
+              (if (eq direction 'forward) 're-search-forward 're-search-backward)
+            (if (eq direction 'forward) 'search-forward 'search-backward)))
+         (found (funcall search-func nano-replace-search nil t)))
+    (when found
+      (setq nano-replace-match-start (match-beginning 0)
+            nano-replace-match-end (match-end 0))
+      (goto-char nano-replace-match-start)
+      (recenter)
+      (when nano-replace-overlay
+        (delete-overlay nano-replace-overlay))
+      (setq nano-replace-overlay (make-overlay nano-replace-match-start nano-replace-match-end))
+      (overlay-put nano-replace-overlay 'face 'highlight)
+      (nano-replace-activate-keymap))
+    found))
 
 (defun nano-replace-find-next ()
   "查找下一个匹配"
-  (let ((case-fold-search (not nano-replace-case)))
-    (if (search-forward nano-replace-search nil t)
-        (progn
-          (setq nano-replace-match-start (match-beginning 0))
-          (setq nano-replace-match-end (match-end 0))
-          (goto-char nano-replace-match-start)
-          (recenter)
-          (setq nano-replace-overlay (make-overlay nano-replace-match-start nano-replace-match-end))
-          (overlay-put nano-replace-overlay 'face 'highlight)
-          (nano-replace-activate-keymap))
+  (let ((direction (if nano-replace-backward 'backward 'forward)))
+    (unless (nano-replace--find direction)
       (message "No more occurrences")
       (nano-replace-deactivate-keymap)
       (nano-replace-cleanup))))
 
 (defun nano-replace-find-prev ()
   "查找上一个匹配"
-  (let ((case-fold-search (not nano-replace-case)))
-    (if (search-backward nano-replace-search nil t)
-        (progn
-          (setq nano-replace-match-start (match-beginning 0))
-          (setq nano-replace-match-end (match-end 0))
-          (goto-char nano-replace-match-start)
-          (recenter)
-          (setq nano-replace-overlay (make-overlay nano-replace-match-start nano-replace-match-end))
-          (overlay-put nano-replace-overlay 'face 'highlight)
-          (nano-replace-activate-keymap))
+  (let ((direction (if nano-replace-backward 'forward 'backward)))
+    (unless (nano-replace--find direction)
       (message "No previous occurrences")
       (nano-replace-activate-keymap))))
 
@@ -608,9 +610,11 @@
 
 (defun nano-replace-activate-keymap ()
   "使用 overriding-local-map 激活局部按键映射"
-  (setq nano-replace--active t)
-  (setq overriding-local-map nano-replace-keymap)
-  (message "Replace this? (Y/n/A/^P/^N/M-C/M-R/M-B/^C/^G)"))
+  (nano--safe-activate-keymap
+   nano-replace-keymap
+   (lambda (v) (setq nano-replace--active v))
+   'nano-replace-deactivate-keymap
+   "Replace this? (Y/n/A/^P/^N/M-C/M-R/M-B/^C/^G)"))
 
 (defun nano-replace-deactivate-keymap ()
   "停用局部按键映射"
@@ -638,16 +642,73 @@
 ;; 顶部标题栏 - 显示 "Emacs" 和缓冲区名称，修改后显示星号
 (setq-default header-line-format
   '((:eval
-     (let ((name (buffer-name))
-           (modified (if (buffer-modified-p) " *" " ")))
-       (propertize (format " Emacs  %s%s" name modified)
+     (let* ((name (buffer-name))
+            (modified (if (buffer-modified-p) " *" " "))
+            (text (format " Emacs  %s%s" name modified))
+            (width (window-width))
+            (pad (max 0 (/ (- width (length text)) 2))))
+       (propertize (concat (make-string pad ?\s) text)
                    'face '(:background "grey20" :foreground "white"))))))
 
-;; 底部快捷键栏
+;; ========== 自动补全与语法检查 ==========
+
+(require 'package)
+(setq package-user-dir (expand-file-name "elpa" user-emacs-directory)
+      package-archives
+      '(("melpa"  . "https://melpa.org/packages/")
+        ("gnu"    . "https://elpa.gnu.org/packages/")
+        ("nongnu" . "https://elpa.nongnu.org/nongnu/")))
+(package-initialize)
+
+(unless (package-installed-p 'company)
+  (package-refresh-contents)
+  (package-install 'company))
+(unless (package-installed-p 'flycheck)
+  (package-refresh-contents)
+  (package-install 'flycheck))
+(unless (package-installed-p 'yasnippet)
+  (package-refresh-contents)
+  (package-install 'yasnippet))
+
+;; company 自动补全
+(require 'company)
+(setq company-minimum-prefix-length 1
+      company-idle-delay 0.1
+      company-tooltip-align-annotations t
+      company-tooltip-limit 14
+      company-require-match nil
+      company-dabbrev-other-buffers t)
+(global-company-mode 1)
+
+;; 补全导航
+(define-key company-active-map (kbd "C-n") #'company-select-next)
+(define-key company-active-map (kbd "C-p") #'company-select-previous)
+(define-key company-active-map (kbd "C-j") #'company-complete-selection)
+(define-key company-active-map (kbd "TAB") #'company-complete-common-or-cycle)
+
+;; flycheck 语法检查
+(require 'flycheck)
+(global-flycheck-mode)
+(setq flycheck-check-syntax-automatically '(save mode-enabled)
+      flycheck-display-errors-delay 0.3)
+
+;; yasnippet 代码片段
+(require 'yasnippet)
+(yas-global-mode 1)
+(setq yas-snippet-dirs '("~/.emacs.d/snippets"))
+
+;; 底部快捷键栏（左：快捷键提示，右：状态信息）
 (setq-default mode-line-format
   '((:eval (propertize " ^G Help | ^O Write Out | ^W Where Is | ^K Cut | ^T Execute | ^C Location | ^6 Mark Set "
                        'face '(:background "grey20" :foreground "white")))
-    (:eval (propertize " " 'display (raise 0.3)))
+    mode-line-mule-info
+    mode-line-modified
+    " "
+    mode-line-buffer-identification
+    " "
+    mode-line-position
+    " "
+    mode-line-modes
     (:eval (propertize " ^X Exit | ^R Read File | ^\\ Replace | ^U Paste | ^J Justify | ^/ Go To Line | M-U Undo "
                        'face '(:background "grey20" :foreground "white")))))
 
