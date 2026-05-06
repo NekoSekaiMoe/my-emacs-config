@@ -332,7 +332,7 @@
 (defvar nano-search-history nil "搜索历史")
 (defvar nano-search-case nil "是否区分大小写")
 (defvar nano-search-original-pos nil "搜索前位置")
-(defvar nano-search-overlay nil "搜索高亮覆盖")
+(defvar nano-search-last-match-end nil "上次匹配结束位置")
 
 (defun nano-search ()
   "Nano 风格的搜索"
@@ -382,53 +382,36 @@
   (let ((case-fold-search (not nano-search-case)))
     (if (search-forward nano-search-string nil t)
         (progn
-          (setq nano-search-match-start (match-beginning 0))
-          (setq nano-search-match-end (match-end 0))
-          (goto-char nano-search-match-start)
+          (setq nano-search-last-match-end (match-end 0))
+          (goto-char (match-beginning 0))
           (recenter)
-          (nano-search-highlight)
           (message "Found"))
       (goto-char nano-search-original-pos)
       (message "Not found")
-      (nano-search-cleanup))))
-
-(defun nano-search-highlight ()
-  "高亮当前匹配"
-  (when nano-search-overlay
-    (delete-overlay nano-search-overlay))
-  (setq nano-search-overlay (make-overlay nano-search-match-start nano-search-match-end))
-  (overlay-put nano-search-overlay 'face 'highlight))
+      (setq nano-search-string nil))))
 
 (defun nano-search-find-next ()
   "查找下一个匹配，支持 wrap"
-  (let ((case-fold-search (not nano-search-case))
-        (current-pos (point)))
-    ;; 先清除当前高亮
-    (when nano-search-overlay
-      (delete-overlay nano-search-overlay))
-    ;; 从当前匹配结束位置的下一个字符开始搜索
-    (goto-char (+ nano-search-match-end 1))
+  (let ((case-fold-search (not nano-search-case)))
+    ;; 从上次匹配结束位置的下一个字符开始搜索
+    (goto-char (1+ nano-search-last-match-end))
     (if (search-forward nano-search-string nil t)
         (progn
-          (setq nano-search-match-start (match-beginning 0))
-          (setq nano-search-match-end (match-end 0))
-          (goto-char nano-search-match-start)
+          (setq nano-search-last-match-end (match-end 0))
+          (goto-char (match-beginning 0))
           (recenter)
-          (nano-search-highlight)
           (message "Found"))
       ;; 没找到，从头开始搜索（wrap）
       (goto-char (point-min))
       (if (search-forward nano-search-string nil t)
           (progn
-            (setq nano-search-match-start (match-beginning 0))
-            (setq nano-search-match-end (match-end 0))
-            (goto-char nano-search-match-start)
+            (setq nano-search-last-match-end (match-end 0))
+            (goto-char (match-beginning 0))
             (recenter)
-            (nano-search-highlight)
             (message "Search wrapped"))
         (goto-char nano-search-original-pos)
         (message "Not found")
-        (nano-search-cleanup)))))
+        (setq nano-search-string nil)))))
 
 (defun nano-search-find-prev ()
   "查找上一个匹配"
