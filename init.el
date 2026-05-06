@@ -1,4 +1,4 @@
-x(defun copy-from-osx ()
+(defun copy-from-osx ()
   (shell-command-to-string "pbpaste"))
 
 (defun paste-to-osx (text &optional push)
@@ -17,7 +17,6 @@ x(defun copy-from-osx ()
  ((memq window-system '(win32 pc))
   (setq select-enable-primary t
         select-enable-clipboard t
-        save-interprogram-paste-before-kill t)))
         save-interprogram-paste-before-kill t)))
 
 ;; 中文显示
@@ -50,6 +49,9 @@ x(defun copy-from-osx ()
  x-stretch-cursor t                               ;; 将光标拉伸到字形宽度
  kill-whole-line t)  ;; C-k时,同时删除该行
 
+;; 默认使用 text-mode（编辑模式），而非 fundamental-mode
+(setq-default major-mode 'text-mode)
+
 (setq
  fringes-outside-margins t   ;; fringe 放在外面
  echo-keystrokes 0.1         ;; 尽快显示按键序列
@@ -75,11 +77,13 @@ x(defun copy-from-osx ()
  ;; 当寻找一个同名的文件,改变两个buffer的名字,前面加上目录名
  uniquify-buffer-name-style 'post-forward-angle-brackets)
 
-(if (display-graphic-p)
-    (progn
-      (menu-bar-mode -1)            ;; 取消菜单栏
-      (scroll-bar-mode -1)          ;; 取消滚动条（在 Emacs 26 中无效）
-      (tool-bar-mode -1)))          ;; 取消工具栏
+;; 禁用所有 UI 元素
+(menu-bar-mode -1)                ;; 取消菜单栏
+(tool-bar-mode -1)                ;; 取消工具栏
+(scroll-bar-mode -1)              ;; 取消滚动条
+(tab-bar-mode -1)                 ;; 取消标签栏
+(when (fboundp 'global-tab-line-mode)
+  (global-tab-line-mode -1))      ;; 取消全局 tab-line
 (fset 'yes-or-no-p 'y-or-n-p) ;; 按y或space表示yes,n表示no
 (global-font-lock-mode t)     ;; 语法高亮
 (show-paren-mode t)           ;; 打开括号匹配显示模式
@@ -90,7 +94,7 @@ x(defun copy-from-osx ()
 (toggle-truncate-lines t)         ;; 当一行文字太长时,不自动换行
 (column-number-mode t)            ;; 在minibuffer上面的状态栏显示文件的行号,列号
 (line-number-mode t)              ;;设定显示文件的参数,以版本/人性化的显示,就是ls的参数
-(global-linum-mode t)             ;; 显示行号
+(global-display-line-numbers-mode t) ;; 显示行号
 (require 'saveplace)
 (save-place-mode 1)               ;; 记住上次打开文件光标的位置
 (global-subword-mode 1)           ;; 拆分连字符：oneWord 会被当作两个单词处理
@@ -105,3 +109,137 @@ x(defun copy-from-osx ()
 
 (unless (string-match-p "^Power N/A" (battery))   ; 笔记本上显示电量
   (display-battery-mode 1))
+
+;; ========== Nano 风格快捷键 ==========
+
+;; 禁用 C-x 前缀键
+(global-unset-key (kbd "C-x"))
+
+;; 标记状态变量
+(defvar nano-mark-active nil "标记是否激活")
+
+;; ^G - Help
+(global-set-key (kbd "C-g") (lambda () (interactive) (info "(emacs) Top")))
+
+;; ^O - Write Out (保存)
+(defun nano-write-out ()
+  "Nano 风格的保存文件"
+  (interactive)
+  (let ((file (buffer-file-name)))
+    (if file
+        (progn
+          (save-buffer)
+          (message "Wrote %s" file))
+      (call-interactively 'write-file))))
+(global-set-key (kbd "C-o") 'nano-write-out)
+
+;; ^S - Save (保存，同 ^O)
+(global-set-key (kbd "C-s") 'nano-write-out)
+
+;; ^F - Where Is (搜索) - 注意：Nano 中 ^W 是搜索
+(global-set-key (kbd "C-f") 'goto-line)
+
+;; ^W - Where Is (搜索)
+(global-set-key (kbd "C-w") 'isearch-forward)
+
+;; ^K - Cut (剪切行)
+(global-set-key (kbd "C-k") 'kill-whole-line)
+
+;; ^T - Execute (执行命令/打开文件)
+(global-set-key (kbd "C-t") 'find-file)
+
+;; ^C - Location (显示行列位置) / 编辑状态下显示已读
+(defun nano-location ()
+  "显示当前光标位置（行列）"
+  (interactive)
+  (message "Line %d, Column %d" (line-number-at-pos) (current-column)))
+(global-set-key (kbd "C-c") 'nano-location)
+
+;; ^6 - 标记设定/解除 (Mark Set/Clear)
+(defun nano-mark-toggle ()
+  "切换标记状态：按一次设定标记，再按一次解除"
+  (interactive)
+  (if nano-mark-active
+      (progn
+        (setq nano-mark-active nil)
+        (deactivate-mark)
+        (message "Mark cleared"))
+    (progn
+      (setq nano-mark-active t)
+      (set-mark (point))
+      (message "Mark set"))))
+(global-set-key (kbd "C-6") 'nano-mark-toggle)
+
+;; M-U - Undo
+(global-set-key (kbd "M-u") 'undo)
+
+;; M-E - Redo (使用 undo-tree 或内置 undo)
+(global-set-key (kbd "M-e") 'undo-redo)
+
+;; ^X - Exit (退出)
+(defun nano-exit ()
+  "Nano 风格的退出"
+  (interactive)
+  (if (buffer-modified-p)
+      (let ((choice (read-char-choice 
+                     "Save modified buffer? (y/n/C-g) "
+                     '(?y ?n ?\C-g))))
+        (cond
+         ((eq choice ?y)
+          (save-buffer)
+          (kill-emacs))
+         ((eq choice ?n)
+          (kill-emacs))
+         ((eq choice ?\C-g)
+          (message "Cancelled"))))
+    (kill-emacs)))
+(global-set-key (kbd "C-x") 'nano-exit)
+
+;; ^R - Read File (打开文件)
+(global-set-key (kbd "C-r") 'find-file)
+
+;; ^\ - Replace (查找替换)
+(global-set-key (kbd "C-\\") 'query-replace)
+
+;; ^U - Paste (粘贴)
+(global-set-key (kbd "C-u") 'yank)
+
+;; ^J - Justify (对齐)
+(global-set-key (kbd "C-j") 'fill-paragraph)
+
+;; ^/ - Go To Line (跳转到指定行和列)
+(defun nano-go-to-line ()
+  "跳转到指定行和列（格式：行,列 或 仅行）"
+  (interactive)
+  (let* ((input (read-string "Go to line (column): "))
+         (parts (split-string input ",")))
+    (if (= (length parts) 2)
+        (progn
+          (goto-char (point-min))
+          (forward-line (1- (string-to-number (car parts))))
+          (move-to-column (string-to-number (cadr parts))))
+      (goto-line (string-to-number (car parts))))))
+(global-set-key (kbd "C-/") 'nano-go-to-line)
+
+;; ========== Nano 风格界面 ==========
+
+;; 顶部标题栏 - 显示 "Emacs" 和缓冲区名称，修改后显示星号
+(setq-default header-line-format
+  '((:eval
+     (let ((name (buffer-name))
+           (modified (if (buffer-modified-p) " *" " ")))
+       (propertize (format " Emacs  %s%s" name modified)
+                   'face '(:background "grey20" :foreground "white"))))))
+
+;; 底部快捷键栏
+(setq-default mode-line-format
+  '((:eval (propertize " ^G Help │ ^O Write Out │ ^W Where Is │ ^K Cut │ ^T Execute │ ^C Location │ ^6 Mark Set "
+                       'face '(:background "grey20" :foreground "white")))
+    (:eval (propertize " " 'display (raise 0.3)))
+    (:eval (propertize " ^X Exit │ ^R Read File │ ^\\ Replace │ ^U Paste │ ^J Justify │ ^/ Go To Line │ M-U Undo "
+                       'face '(:background "grey20" :foreground "white")))))
+
+;; 启动时显示快捷键提示
+(add-hook 'emacs-startup-hook
+          (lambda ()
+            (message "Press ^G for Help")))
