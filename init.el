@@ -175,8 +175,14 @@
 ;; ^W - Where Is (Nano 风格搜索)
 (global-set-key (kbd "C-w") 'nano-search)
 
-;; ^K - Cut (剪切行)
-(global-set-key (kbd "C-k") 'kill-whole-line)
+;; ^K - Cut (有选区时剪切选区，无选区时剪切整行)
+(defun nano-kill-line ()
+  "有活动选区时剪切选区，否则剪切整行 (Nano 风格)。"
+  (interactive)
+  (if (use-region-p)
+      (kill-region (region-beginning) (region-end))
+    (kill-whole-line)))
+(global-set-key (kbd "C-k") 'nano-kill-line)
 
 ;; ^T - Execute (执行命令/打开文件)
 (global-set-key (kbd "C-t") 'find-file)
