@@ -115,7 +115,7 @@
   "Nano 风格的跳转到指定位置。"
   (interactive)
   (setq nano-go-to-line--original-pos (point))
-  (nano-go-to-line-activate-keymap))
+  (nano-go-to-line-prompt))
 
 (defun nano-go-to-line-prompt ()
   "提示输入跳转位置。"
@@ -132,14 +132,19 @@
         (goto-char (point-min))
         (forward-line (max 0 (1- line)))
         (move-to-column (max 0 col))
-        (recenter))))))
+        (recenter)
+        (nano-go-to-line-activate-keymap))))))
+
+;; ^/ 跳转模式 - 使用 overriding-local-map 强制覆盖
+(defvar nano-go-to-line--original-pos nil)
+(defvar nano-go-to-line--active nil)
 
 (defvar nano-go-to-line-keymap
   (let ((map (make-sparse-keymap)))
     (define-key map (kbd "C-c") #'nano-go-to-line-cancel)
     (define-key map (kbd "C-g") #'nano-go-to-line-cancel)
     (define-key map (kbd "C-o") #'nano-go-to-line-end)
-    (define-key map (kbd "C-w") #'nano-go-to-line-start)
+    (define-key map (kbd "M-w") #'nano-go-to-line-start)
     (define-key map (kbd "C-v") #'nano-go-to-line-bottom)
     (define-key map (kbd "C-y") #'nano-go-to-line-top)
     (define-key map (kbd "C-t") #'nano-go-to-line-to-text)
@@ -160,7 +165,7 @@
    nano-go-to-line-keymap
    (lambda (v) (setq nano-go-to-line--active v))
    'nano-go-to-line-deactivate-keymap
-   "^G Help | ^O End | ^W Start | ^V Bottom | ^Y Top | ^T To Text | ^C Cancel"))
+   "GoTo: ^C Cancel | ^O End | M-W Start | ^V Bottom | ^Y Top | ^T To Text"))
 
 (defun nano-go-to-line-deactivate-keymap ()
   "停用局部按键映射。"

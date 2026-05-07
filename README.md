@@ -25,6 +25,19 @@ Personal Emacs configuration — a single `init.el` that makes Emacs behave like
 | `M-e` | Redo |
 | `M-c` | Toggle search case sensitivity |
 
+### Go To Line Sub-commands
+
+After pressing `C-/` and entering a line number, the following sub-commands are available:
+
+| Key | Action |
+|-----|--------|
+| `C-o` | Jump to end of file |
+| `M-w` | Jump to start of file |
+| `C-v` | Jump to bottom of screen |
+| `C-y` | Jump to top of screen |
+| `C-t` | Jump to specific text |
+| `C-c` / `C-g` | Cancel |
+
 ## IDE Features
 
 - **company** — auto-completion popup after 1 character, `C-n`/`C-p` to navigate, `C-j`/`TAB` to confirm
@@ -34,7 +47,26 @@ Personal Emacs configuration — a single `init.el` that makes Emacs behave like
 
 ## Supported Languages
 
-C/C++ (clangd), Go (gopls), Java (jdtls), Kotlin (kotlin-language-server), Rust (rust-analyzer), Python (pylsp/pyright), JavaScript/TypeScript (typescript-language-server), CMake (cmake-language-server), plus YAML, TOML, JSON, Markdown, Dockerfile, Lua, Makefile, Autoconf, Meson, Lex/Yacc — each with autoload + keyword completion + optional LSP.
+| Language | LSP Server | Keyword Completion |
+|----------|-----------|-------------------|
+| C/C++ | clangd | — |
+| Go | gopls | ✅ |
+| Java | jdtls | ✅ |
+| Kotlin | kotlin-language-server | ✅ |
+| Rust | rust-analyzer | ✅ |
+| Python | pylsp/pyright | ✅ |
+| JavaScript/TypeScript | typescript-language-server | ✅ |
+| CMake | cmake-language-server | ✅ |
+| YAML | yaml-language-server | — |
+| JSON | vscode-json-language-server | — |
+| Markdown | marksman | — |
+| Dockerfile | docker-langserver | ✅ |
+| Lua | lua-language-server | ✅ |
+| TOML | — | — |
+| Makefile | — | — |
+| Autoconf | — | — |
+| Meson | — | — |
+| Lex/Yacc | — | — |
 
 ## Search & Replace
 
@@ -47,9 +79,21 @@ On launch, a custom `*Welcome*` buffer is shown with a keybinding cheat sheet an
 
 ## Structure
 
-- `init.el` — the entire config
-- No build, test, or package manager
+```
+init.el              ← Entry point, loads modules
+nano/
+  nano-util.el       ← Encoding, clipboard, basic settings, backup, UI
+  nano-window.el     ← Header-line, mode-line, GC optimization
+  nano-keys.el       ← Keybindings, search, replace, go-to-line
+  nano-lsp.el        ← LSP config, language modes, keyword completion
+  nano-welcome.el    ← Startup welcome page
+```
+
+- No build, test, or package manager.
 
 ## Usage
 
-Edit `init.el` and reload with `M-x eval-buffer` or restart Emacs. First startup installs company, flycheck, and yasnippet from MELPA automatically.
+Edit `init.el` or files in `nano/` and reload with `M-x eval-buffer` or restart Emacs. First startup auto-installs required packages from MELPA:
+
+- Core: `company`, `flycheck`, `yasnippet`
+- Languages: `go-mode`, `python-mode`, `js2-mode`, `typescript-mode`, `yaml-mode`, `toml-mode`, `json-mode`, `markdown-mode`, `dockerfile-mode`, `lua-mode`, `kotlin-mode`, `cmake-mode`, `meson-mode`

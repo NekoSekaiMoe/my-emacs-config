@@ -21,7 +21,7 @@
     (insert (propertize "快捷键\n" 'face '(:weight bold :height 1.2)))
     (insert "  ^O 保存    ^W 搜索    ^K 剪切    ^X 退出\n")
     (insert "  ^T 打开    ^R 读取    ^\\ 替换    ^U 粘贴\n")
-    (insert "  ^/ 跳转    ^J 对齐    M-U 撤销   M-E 重做\n")
+    (insert "  ^/ 跳转行  ^J 对齐    M-U 撤销   M-E 重做\n")
     (insert "\n")
     (insert (propertize (make-string 40 ?─) 'face '(:foreground "grey50")))
     (insert "\n\n")
@@ -38,6 +38,9 @@
     (insert (propertize (make-string 40 ?─) 'face '(:foreground "grey50")))
     (insert "\n")
     (insert (propertize "按数字键 1-0 打开对应文件，^O 打开其他文件\n"
+                        'face '(:foreground "grey50")))
+    (insert "\n")
+    (insert (propertize "GoTo 子命令: ^O End | M-W Start | ^V Bottom | ^Y Top | ^T To Text | ^C Cancel\n"
                         'face '(:foreground "grey50")))))
 
 (defun nano-welcome-open-file (n)
