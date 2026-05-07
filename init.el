@@ -741,42 +741,51 @@
   (unless (package-installed-p pkg)
     (package-install pkg)))
 
-;; company 自动补全
-(require 'company)
-(setq company-minimum-prefix-length 1
-      company-idle-delay 0.1
-      company-tooltip-align-annotations t
-      company-tooltip-limit 14
-      company-require-match nil
-      company-dabbrev-other-buffers t
-      company-dabbrev-ignore-case t
-      company-dabbrev-downcase nil
-      company-tooltip-flip-when-above t)
-(global-company-mode 1)
+;; company 自动补全 — 延迟加载
+(with-eval-after-load 'company
+  (setq company-minimum-prefix-length 1
+        company-idle-delay 0.1
+        company-tooltip-align-annotations t
+        company-tooltip-limit 14
+        company-require-match nil
+        company-dabbrev-other-buffers t
+        company-dabbrev-ignore-case t
+        company-dabbrev-downcase nil
+        company-tooltip-flip-when-above t)
+  ;; 补全导航 — Nano 风格: ^N 下 ^P 上 ^J/TAB 确认
+  (define-key company-active-map (kbd "C-n") #'company-select-next)
+  (define-key company-active-map (kbd "C-p") #'company-select-previous)
+  (define-key company-active-map (kbd "C-j") #'company-complete-selection)
+  (define-key company-active-map (kbd "TAB") #'company-complete-common-or-cycle)
+  (define-key company-active-map (kbd "RET") #'company-complete-selection)
+  (define-key company-active-map (kbd "<down>") #'company-select-next)
+  (define-key company-active-map (kbd "<up>") #'company-select-previous)
+  (define-key company-active-map (kbd "<right>") #'company-complete-common-or-cycle)
+  ;; TAB 默认插入真实 Tab 字符；company 激活时 company-active-map 优先拦截
+  (define-key company-mode-map (kbd "TAB") (lambda () (interactive) (insert "\t")))
+  ;; backend 分组
+  (setq company-backends
+        '((company-capf :with company-yasnippet)
+          (company-keywords company-files)
+          company-dabbrev-code
+          company-dabbrev)))
 
-;; 补全导航 — Nano 风格: ^N 下 ^P 上 ^J/TAB 确认
-(define-key company-active-map (kbd "C-n") #'company-select-next)
-(define-key company-active-map (kbd "C-p") #'company-select-previous)
-(define-key company-active-map (kbd "C-j") #'company-complete-selection)
-(define-key company-active-map (kbd "TAB") #'company-complete-common-or-cycle)
 
-;; TAB 默认插入真实 Tab 字符；补全菜单激活时 company-active-map 优先拦截
-(define-key company-mode-map (kbd "TAB") (lambda () (interactive) (insert "\t")))
-(define-key company-active-map (kbd "RET") #'company-complete-selection)
-(define-key company-active-map (kbd "<down>") #'company-select-next)
-(define-key company-active-map (kbd "<up>") #'company-select-previous)
-(define-key company-active-map (kbd "<right>") #'company-complete-common-or-cycle)
 
-;; flycheck 语法检查
-(require 'flycheck)
-(global-flycheck-mode)
-(setq flycheck-check-syntax-automatically '(save mode-enabled)
-      flycheck-display-errors-delay 0.3)
+;; flycheck 语法检查 — 延迟加载
+(with-eval-after-load 'flycheck
+  (setq flycheck-check-syntax-automatically '(save mode-enabled)
+        flycheck-display-errors-delay 0.3))
 
-;; yasnippet 代码片段
-(require 'yasnippet)
-(yas-global-mode 1)
-(setq yas-snippet-dirs '("~/.emacs.d/snippets"))
+;; yasnippet 代码片段 — 延迟加载
+(with-eval-after-load 'yasnippet
+  (setq yas-snippet-dirs '("~/.emacs.d/snippets")))
+
+;; ========== 延迟启用全局模式（减少启动开销） ==========
+
+(add-hook 'after-init-hook #'global-company-mode)
+(add-hook 'after-init-hook #'global-flycheck-mode)
+(add-hook 'after-init-hook #'yas-global-mode)
 
 ;; ========== LSP (eglot) — 按需加载 ==========
 
@@ -813,19 +822,6 @@
     (dockerfile-mode  . ("docker-langserver"))
     (lua-mode         . ("lua-language-server" "lua-lsp")))
   "各 major-mode 对应的 LSP 服务器候选名。")
-
-;; eglot 补全接入 company
-;; backend 分组说明:
-;;   第一组: LSP (capf) + yasnippet — 语义补全 (变量/函数/类型)
-;;   第二组: 关键字 + 文件路径 — 语言关键字和 /path/ 补全
-;;   第三组: dabbrev-code — 当前 buffer 文本子串匹配 (词边界感知)
-;;   第四组: dabbrev — 跨 buffer 文本匹配
-(with-eval-after-load 'company
-  (setq company-backends
-        '((company-capf :with company-yasnippet)
-          (company-keywords company-files)
-          company-dabbrev-code
-          company-dabbrev)))
 
 ;; ========== 语言模式 — 按需加载 ==========
 
