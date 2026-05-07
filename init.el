@@ -189,7 +189,9 @@
 (global-set-key (kbd "C-c") 'nano-location)
 
 ;; ^6 - 标记设定/解除 (使用原生 set-mark-command，支持区域高亮)
+;; C-6 和 C-^ 是同一个物理键，两种表示都要绑定
 (global-set-key (kbd "C-6") 'set-mark-command)
+(global-set-key (kbd "C-^") 'set-mark-command)
 
 ;; M-U - Undo
 (global-set-key (kbd "M-u") 'undo)
