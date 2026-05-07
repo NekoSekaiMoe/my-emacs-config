@@ -56,7 +56,7 @@
  fringes-outside-margins t   ;; fringe 放在外面
  echo-keystrokes 0.1         ;; 尽快显示按键序列
  system-time-locale "zh_CN"  ;; 设置系统时间显示格式
- tab-always-indent 'complete ;; Tab 键优先格式化再补全
+ indent-tabs-mode t          ;; Tab 插入真实 TAB 字符，不用空格替代
  font-lock-global-modes '(not shell-mode text-mode) ;; 设置语法高亮.除shell-mode和text-mode之外的模式
  mouse-yank-at-point t       ;; 不在鼠标点击的地方插入剪贴板内容
  kill-ring-max 200           ;; 设置 kill ring 个数
@@ -742,14 +742,21 @@
       company-tooltip-align-annotations t
       company-tooltip-limit 14
       company-require-match nil
-      company-dabbrev-other-buffers t)
+      company-dabbrev-other-buffers t
+      company-dabbrev-ignore-case t
+      company-dabbrev-downcase nil
+      company-tooltip-flip-when-above t)
 (global-company-mode 1)
 
-;; 补全导航
+;; 补全导航 — Nano 风格: ^N 下 ^P 上 ^J/TAB 确认
 (define-key company-active-map (kbd "C-n") #'company-select-next)
 (define-key company-active-map (kbd "C-p") #'company-select-previous)
 (define-key company-active-map (kbd "C-j") #'company-complete-selection)
 (define-key company-active-map (kbd "TAB") #'company-complete-common-or-cycle)
+(define-key company-active-map (kbd "RET") #'company-complete-selection)
+(define-key company-active-map (kbd "<down>") #'company-select-next)
+(define-key company-active-map (kbd "<up>") #'company-select-previous)
+(define-key company-active-map (kbd "<right>") #'company-complete-common-or-cycle)
 
 ;; flycheck 语法检查
 (require 'flycheck)
@@ -799,9 +806,15 @@
   "各 major-mode 对应的 LSP 服务器候选名。")
 
 ;; eglot 补全接入 company
+;; backend 分组说明:
+;;   第一组: LSP (capf) + yasnippet — 语义补全 (变量/函数/类型)
+;;   第二组: 关键字 + 文件路径 — 语言关键字和 /path/ 补全
+;;   第三组: dabbrev-code — 当前 buffer 文本子串匹配 (词边界感知)
+;;   第四组: dabbrev — 跨 buffer 文本匹配
 (with-eval-after-load 'company
   (setq company-backends
         '((company-capf :with company-yasnippet)
+          (company-keywords company-files)
           company-dabbrev-code
           company-dabbrev)))
 
