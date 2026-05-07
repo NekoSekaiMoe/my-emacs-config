@@ -74,8 +74,8 @@
     (go-mode             . ("gopls"))
     (rustic-mode         . ("rust-analyzer"))
     (rust-mode           . ("rust-analyzer"))
-    (python-mode         . ("pylsp" "pyright-langserver" "jedi-language-server" "ruff"))
-    (python-ts-mode      . ("pylsp" "pyright-langserver" "jedi-language-server" "ruff"))
+    (python-mode         . ("pylsp"))
+    (python-ts-mode      . ("pylsp"))
     (js2-mode            . ("typescript-language-server" "vscode-html-language-server"))
     (js-mode             . ("typescript-language-server" "vscode-html-language-server"))
     (typescript-mode     . ("typescript-language-server"))
@@ -89,21 +89,7 @@
     (lua-mode            . ("lua-language-server" "lua-lsp")))
   "各 major-mode 对应的 LSP 服务器候选名。")
 
-;; ========== 语言关键字补全 ==========
-
-(defconst nano-go-keywords
-  '("break" "case" "chan" "const" "continue" "default" "defer" "else"
-    "fallthrough" "for" "func" "go" "goto" "if" "import" "interface"
-    "map" "package" "range" "return" "select" "struct" "switch" "type" "var"
-    "append" "cap" "close" "complex" "copy" "delete" "imag" "len" "make"
-    "new" "panic" "print" "println" "real" "recover"
-    "nil" "true" "false" "iota"
-    "int" "int8" "int16" "int32" "int64"
-    "uint" "uint8" "uint16" "uint32" "uint64" "uintptr"
-    "float32" "float64" "complex64" "complex128"
-    "bool" "byte" "rune" "string" "error"
-    "fmt" "os" "io" "net" "time" "sync" "context")
-  "Go 关键字列表。")
+;; ========== 语言关键字补全（LSP 优先，关键字表作 fallback） ==========
 
 (defconst nano-java-keywords
   '("abstract" "assert" "boolean" "break" "byte" "case" "catch" "char"
@@ -144,23 +130,6 @@
     "run" "let" "also" "apply" "with"
     "lazy" "lateinit")
   "Kotlin 关键字列表。")
-
-(defconst nano-python-keywords
-  '("False" "None" "True" "and" "as" "assert" "async" "await" "break"
-    "class" "continue" "def" "del" "elif" "else" "except" "finally"
-    "for" "from" "global" "if" "import" "in" "is" "lambda" "nonlocal"
-    "not" "or" "pass" "raise" "return" "try" "while" "with" "yield"
-    "print" "len" "range" "enumerate" "zip" "map" "filter" "sorted"
-    "reversed" "sum" "min" "max" "abs" "round" "type" "isinstance"
-    "issubclass" "hasattr" "getattr" "setattr" "delattr" "dir" "vars"
-    "open" "input" "int" "float" "str" "list" "dict" "tuple" "set"
-    "frozenset" "bool" "bytes" "bytearray" "memoryview"
-    "self" "cls" "super" "property" "staticmethod" "classmethod"
-    "Exception" "ValueError" "TypeError" "KeyError" "IndexError"
-    "AttributeError" "ImportError" "RuntimeError" "StopIteration"
-    "os" "sys" "json" "re" "math" "datetime" "collections" "itertools"
-    "functools" "pathlib" "subprocess" "threading" "multiprocessing")
-  "Python 关键字列表。")
 
 (defconst nano-js-keywords
   '("break" "case" "catch" "class" "const" "continue" "debugger" "default"
@@ -263,7 +232,6 @@
 (autoload 'go-mode "go-mode" nil t)
 (add-to-list 'auto-mode-alist '("\\.go\\'" . go-mode))
 (with-eval-after-load 'go-mode
-  (setq-local company-keywords nano-go-keywords)
   (define-key go-mode-map (kbd "C-x") 'nano-exit)
   (add-hook 'go-mode-hook #'nano-eglot-ensure))
 
@@ -293,7 +261,6 @@
 (autoload 'python-mode "python-mode" nil t)
 (add-to-list 'auto-mode-alist '("\\.py\\'" . python-mode))
 (with-eval-after-load 'python-mode
-  (setq-local company-keywords nano-python-keywords)
   (define-key python-mode-map (kbd "C-x") 'nano-exit)
   (add-hook 'python-mode-hook #'nano-eglot-ensure))
 
