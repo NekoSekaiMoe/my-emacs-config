@@ -262,8 +262,8 @@
                       (string-to-number (cadr parts))
                     0)))
         (goto-char (point-min))
-        (forward-line (1- line))
-        (move-to-column col)
+        (forward-line (max 0 (1- line)))
+        (move-to-column (max 0 col))
         (recenter)
         (nano-go-to-line-activate-keymap))))))
 
@@ -274,7 +274,7 @@
 (defvar nano-go-to-line-keymap
   (let ((map (make-sparse-keymap)))
     (define-key map (kbd "C-c") #'nano-go-to-line-cancel)
-    (define-key map (kbd "C-g") #'nano-go-to-line-help)
+    (define-key map (kbd "C-g") #'nano-go-to-line-cancel)
     (define-key map (kbd "C-o") #'nano-go-to-line-end)
     (define-key map (kbd "C-w") #'nano-go-to-line-start)
     (define-key map (kbd "C-v") #'nano-go-to-line-bottom)
@@ -387,7 +387,7 @@
   (let* ((history nano-search-history)
          (default-val (car history))
          (prompt (if default-val
-                     (format "Search [%s]: " default-val)
+                     (concat "Search [" default-val "]: ")
                    "Search: "))
          (input (read-string prompt nil 'nano-search-history default-val)))
     (cond
@@ -455,19 +455,22 @@
   (let* ((history nano-replace-history)
          (default-val (car history))
          (prompt (if default-val
-                     (format "Search (to replace) [%s]: " default-val)
+                     (concat "Search (to replace) [" default-val "]: ")
                    "Search (to replace): "))
          (input (read-string prompt nil 'nano-replace-history default-val)))
-    (if (string= input "")
-        (when default-val
-          (setq nano-replace-search default-val)
-          (nano-replace-prompt-replace))
+    (cond
+     ((and (string= input "") default-val)
+      (setq nano-replace-search default-val)
+      (nano-replace-prompt-replace))
+     ((string= input "")
+      (message "Cancelled"))
+     (t
       (setq nano-replace-search input)
-      (nano-replace-prompt-replace))))
+      (nano-replace-prompt-replace)))))
 
 (defun nano-replace-prompt-replace ()
   "第二步：输入替换字符串"
-  (let ((prompt (format "Replace with [%s]: " nano-replace-search)))
+  (let ((prompt (concat "Replace with [" nano-replace-search "]: ")))
     (setq nano-replace-replace (read-string prompt)))
   (nano-replace-execute))
 
