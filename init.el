@@ -658,6 +658,14 @@
                 right)
         'face '(:background "grey20" :foreground "white"))))))
 
+;; ========== 启动优化：减少 GC ==========
+
+;; 启动时提高 GC 阈值，完成后恢复
+(setq gc-cons-threshold (* 128 1024 1024)) ; 128MB
+(add-hook 'emacs-startup-hook
+          (lambda ()
+            (setq gc-cons-threshold (* 16 1024 1024)))) ; 恢复 16MB
+
 ;; ========== 自动补全与语法检查 ==========
 
 (require 'package)
@@ -678,40 +686,13 @@
   (package-refresh-contents)
   (package-install 'yasnippet))
 
-;; 语言模式
+;; 语言模式 — 仅确保安装，用 autoload 延迟加载
 (unless (package-installed-p 'go-mode)
   (package-refresh-contents)
   (package-install 'go-mode))
-(unless (package-installed-p 'rustic)
-  (package-refresh-contents)
-  (package-install 'rustic))
-(unless (package-installed-p 'python-mode)
-  (package-refresh-contents)
-  (package-install 'python-mode))
-(unless (package-installed-p 'js2-mode)
-  (package-refresh-contents)
-  (package-install 'js2-mode))
-(unless (package-installed-p 'typescript-mode)
-  (package-refresh-contents)
-  (package-install 'typescript-mode))
-(unless (package-installed-p 'yaml-mode)
-  (package-refresh-contents)
-  (package-install 'yaml-mode))
-(unless (package-installed-p 'toml-mode)
-  (package-refresh-contents)
-  (package-install 'toml-mode))
-(unless (package-installed-p 'markdown-mode)
-  (package-refresh-contents)
-  (package-install 'markdown-mode))
-(unless (package-installed-p 'json-mode)
-  (package-refresh-contents)
-  (package-install 'json-mode))
-(unless (package-installed-p 'dockerfile-mode)
-  (package-refresh-contents)
-  (package-install 'dockerfile-mode))
-(unless (package-installed-p 'lua-mode)
-  (package-refresh-contents)
-  (package-install 'lua-mode))
+(dolist (pkg '(python-mode js2-mode typescript-mode yaml-mode toml-mode json-mode markdown-mode dockerfile-mode lua-mode))
+  (unless (package-installed-p pkg)
+    (package-install pkg)))
 
 ;; company 自动补全
 (require 'company)
@@ -740,12 +721,10 @@
 (yas-global-mode 1)
 (setq yas-snippet-dirs '("~/.emacs.d/snippets"))
 
-;; ========== LSP (eglot) ==========
+;; ========== LSP (eglot) — 按需加载 ==========
 
-(require 'eglot)
-
-;; 抑制 "Searching for program" 警告：找不到 LSP 服务器时静默失败
-(setq eglot-events-buffer-size 0)
+(with-eval-after-load 'eglot
+  (setq eglot-events-buffer-size 0))
 
 (defun nano-eglot-ensure ()
   "仅在 LSP 服务器已安装时才启动 eglot。"
@@ -778,13 +757,6 @@
     (lua-mode         . ("lua-language-server" "lua-lsp")))
   "各 major-mode 对应的 LSP 服务器候选名。")
 
-;; 自动启动 LSP（仅在服务器已安装时）
-(add-hook 'go-mode-hook #'nano-eglot-ensure)
-(add-hook 'rustic-mode-hook #'nano-eglot-ensure)
-(add-hook 'python-mode-hook #'nano-eglot-ensure)
-(add-hook 'js2-mode-hook #'nano-eglot-ensure)
-(add-hook 'typescript-mode-hook #'nano-eglot-ensure)
-
 ;; eglot 补全接入 company
 (with-eval-after-load 'company
   (setq company-backends
@@ -792,64 +764,83 @@
           company-dabbrev-code
           company-dabbrev)))
 
-;; ========== 语言模式 ==========
+;; ========== 语言模式 — 按需加载 ==========
 
 ;; Go
-(require 'go-mode)
-(define-key go-mode-map (kbd "C-x") 'nano-exit)
+(autoload 'go-mode "go-mode" nil t)
+(add-to-list 'auto-mode-alist '("\\.go\\'" . go-mode))
+(with-eval-after-load 'go-mode
+  (define-key go-mode-map (kbd "C-x") 'nano-exit)
+  (add-hook 'go-mode-hook #'nano-eglot-ensure))
 
-;; Rust
-(require 'rustic)
-(setq rustic-lsp-client 'eglot)
-(define-key rustic-mode-map (kbd "C-x") 'nano-exit)
+;; Rust — 用 rust-mode 替代 rustic，避免 org 依赖拖累启动
+(autoload 'rust-mode "rust-mode" nil t)
+(add-to-list 'auto-mode-alist '("\\.rs\\'" . rust-mode))
+(with-eval-after-load 'rust-mode
+  (define-key rust-mode-map (kbd "C-x") 'nano-exit)
+  (add-hook 'rust-mode-hook #'nano-eglot-ensure))
 
 ;; Python
-(require 'python-mode)
-(define-key python-mode-map (kbd "C-x") 'nano-exit)
+(autoload 'python-mode "python-mode" nil t)
+(add-to-list 'auto-mode-alist '("\\.py\\'" . python-mode))
+(with-eval-after-load 'python-mode
+  (define-key python-mode-map (kbd "C-x") 'nano-exit)
+  (add-hook 'python-mode-hook #'nano-eglot-ensure))
 
-;; JavaScript / TypeScript
-(require 'js2-mode)
+;; JavaScript
+(autoload 'js2-mode "js2-mode" nil t)
 (add-to-list 'auto-mode-alist '("\\.js\\'" . js2-mode))
 (add-to-list 'auto-mode-alist '("\\.jsx\\'" . js2-mode))
 (add-to-list 'auto-mode-alist '("\\.mjs\\'" . js2-mode))
-(define-key js2-mode-map (kbd "C-x") 'nano-exit)
+(with-eval-after-load 'js2-mode
+  (define-key js2-mode-map (kbd "C-x") 'nano-exit)
+  (add-hook 'js2-mode-hook #'nano-eglot-ensure))
 
-(require 'typescript-mode)
+;; TypeScript
+(autoload 'typescript-mode "typescript-mode" nil t)
 (add-to-list 'auto-mode-alist '("\\.ts\\'" . typescript-mode))
 (add-to-list 'auto-mode-alist '("\\.tsx\\'" . typescript-mode))
-(define-key typescript-mode-map (kbd "C-x") 'nano-exit)
+(with-eval-after-load 'typescript-mode
+  (define-key typescript-mode-map (kbd "C-x") 'nano-exit)
+  (add-hook 'typescript-mode-hook #'nano-eglot-ensure))
 
 ;; YAML
-(require 'yaml-mode)
+(autoload 'yaml-mode "yaml-mode" nil t)
 (add-to-list 'auto-mode-alist '("\\.yml\\'" . yaml-mode))
 (add-to-list 'auto-mode-alist '("\\.yaml\\'" . yaml-mode))
-(define-key yaml-mode-map (kbd "C-x") 'nano-exit)
+(with-eval-after-load 'yaml-mode
+  (define-key yaml-mode-map (kbd "C-x") 'nano-exit))
 
 ;; TOML
-(require 'toml-mode)
+(autoload 'toml-mode "toml-mode" nil t)
 (add-to-list 'auto-mode-alist '("\\.toml\\'" . toml-mode))
-(define-key toml-mode-map (kbd "C-x") 'nano-exit)
+(with-eval-after-load 'toml-mode
+  (define-key toml-mode-map (kbd "C-x") 'nano-exit))
 
 ;; JSON
-(require 'json-mode)
+(autoload 'json-mode "json-mode" nil t)
 (add-to-list 'auto-mode-alist '("\\.json\\'" . json-mode))
-(define-key json-mode-map (kbd "C-x") 'nano-exit)
+(with-eval-after-load 'json-mode
+  (define-key json-mode-map (kbd "C-x") 'nano-exit))
 
 ;; Markdown
-(require 'markdown-mode)
+(autoload 'markdown-mode "markdown-mode" nil t)
 (add-to-list 'auto-mode-alist '("\\.md\\'" . markdown-mode))
 (add-to-list 'auto-mode-alist '("\\.markdown\\'" . markdown-mode))
-(define-key markdown-mode-map (kbd "C-x") 'nano-exit)
+(with-eval-after-load 'markdown-mode
+  (define-key markdown-mode-map (kbd "C-x") 'nano-exit))
 
 ;; Dockerfile
-(require 'dockerfile-mode)
+(autoload 'dockerfile-mode "dockerfile-mode" nil t)
 (add-to-list 'auto-mode-alist '("Dockerfile\\'" . dockerfile-mode))
-(define-key dockerfile-mode-map (kbd "C-x") 'nano-exit)
+(with-eval-after-load 'dockerfile-mode
+  (define-key dockerfile-mode-map (kbd "C-x") 'nano-exit))
 
 ;; Lua
-(require 'lua-mode)
+(autoload 'lua-mode "lua-mode" nil t)
 (add-to-list 'auto-mode-alist '("\\.lua\\'" . lua-mode))
-(define-key lua-mode-map (kbd "C-x") 'nano-exit)
+(with-eval-after-load 'lua-mode
+  (define-key lua-mode-map (kbd "C-x") 'nano-exit))
 
 ;; 底部快捷键栏（左：快捷键提示，右：状态信息）
 (setq-default mode-line-format
