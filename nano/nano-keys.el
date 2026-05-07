@@ -119,7 +119,9 @@
 
 (defun nano-go-to-line-prompt ()
   "提示输入跳转位置。"
-  (let ((input (read-string "Go to line (column): ")))
+  ;; 确保 overriding-local-map 不干扰 read-string
+  (let ((overriding-local-map nil)
+        (input (read-string "Go to line (column): ")))
     (cond
      ((string= input "")
       (message "Cancelled"))
