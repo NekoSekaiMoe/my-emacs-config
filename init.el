@@ -678,6 +678,41 @@
   (package-refresh-contents)
   (package-install 'yasnippet))
 
+;; 语言模式
+(unless (package-installed-p 'go-mode)
+  (package-refresh-contents)
+  (package-install 'go-mode))
+(unless (package-installed-p 'rustic)
+  (package-refresh-contents)
+  (package-install 'rustic))
+(unless (package-installed-p 'python-mode)
+  (package-refresh-contents)
+  (package-install 'python-mode))
+(unless (package-installed-p 'js2-mode)
+  (package-refresh-contents)
+  (package-install 'js2-mode))
+(unless (package-installed-p 'typescript-mode)
+  (package-refresh-contents)
+  (package-install 'typescript-mode))
+(unless (package-installed-p 'yaml-mode)
+  (package-refresh-contents)
+  (package-install 'yaml-mode))
+(unless (package-installed-p 'toml-mode)
+  (package-refresh-contents)
+  (package-install 'toml-mode))
+(unless (package-installed-p 'markdown-mode)
+  (package-refresh-contents)
+  (package-install 'markdown-mode))
+(unless (package-installed-p 'json-mode)
+  (package-refresh-contents)
+  (package-install 'json-mode))
+(unless (package-installed-p 'dockerfile-mode)
+  (package-refresh-contents)
+  (package-install 'dockerfile-mode))
+(unless (package-installed-p 'lua-mode)
+  (package-refresh-contents)
+  (package-install 'lua-mode))
+
 ;; company 自动补全
 (require 'company)
 (setq company-minimum-prefix-length 1
@@ -704,6 +739,117 @@
 (require 'yasnippet)
 (yas-global-mode 1)
 (setq yas-snippet-dirs '("~/.emacs.d/snippets"))
+
+;; ========== LSP (eglot) ==========
+
+(require 'eglot)
+
+;; 抑制 "Searching for program" 警告：找不到 LSP 服务器时静默失败
+(setq eglot-events-buffer-size 0)
+
+(defun nano-eglot-ensure ()
+  "仅在 LSP 服务器已安装时才启动 eglot。"
+  (condition-case nil
+      (when (nano--lsp-server-p major-mode)
+        (eglot-ensure))
+    (error nil)))
+
+(defun nano--lsp-server-p (mode)
+  "检查 MODE 对应的 LSP 服务器是否已安装。"
+  (let ((servers (cdr (assoc mode nano--lsp-servers))))
+    (and servers (cl-some #'executable-find servers))))
+
+;; mode → 可能的 LSP 服务器可执行文件名列表
+(defconst nano--lsp-servers
+  '((go-mode          . ("gopls"))
+    (rustic-mode      . ("rust-analyzer"))
+    (rust-mode        . ("rust-analyzer"))
+    (python-mode      . ("pylsp" "pyright-langserver" "jedi-language-server" "ruff"))
+    (python-ts-mode   . ("pylsp" "pyright-langserver" "jedi-language-server" "ruff"))
+    (js2-mode         . ("typescript-language-server" "vscode-html-language-server"))
+    (js-mode          . ("typescript-language-server" "vscode-html-language-server"))
+    (typescript-mode  . ("typescript-language-server"))
+    (typescript-ts-mode . ("typescript-language-server"))
+    (yaml-mode        . ("yaml-language-server"))
+    (json-mode        . ("vscode-json-language-server" "json-languageserver"))
+    (json-ts-mode     . ("vscode-json-language-server" "json-languageserver"))
+    (markdown-mode    . ("marksman" "vscode-markdown-language-server"))
+    (dockerfile-mode  . ("docker-langserver"))
+    (lua-mode         . ("lua-language-server" "lua-lsp")))
+  "各 major-mode 对应的 LSP 服务器候选名。")
+
+;; 自动启动 LSP（仅在服务器已安装时）
+(add-hook 'go-mode-hook #'nano-eglot-ensure)
+(add-hook 'rustic-mode-hook #'nano-eglot-ensure)
+(add-hook 'python-mode-hook #'nano-eglot-ensure)
+(add-hook 'js2-mode-hook #'nano-eglot-ensure)
+(add-hook 'typescript-mode-hook #'nano-eglot-ensure)
+
+;; eglot 补全接入 company
+(with-eval-after-load 'company
+  (setq company-backends
+        '((company-capf :with company-yasnippet)
+          company-dabbrev-code
+          company-dabbrev)))
+
+;; ========== 语言模式 ==========
+
+;; Go
+(require 'go-mode)
+(define-key go-mode-map (kbd "C-x") 'nano-exit)
+
+;; Rust
+(require 'rustic)
+(setq rustic-lsp-client 'eglot)
+(define-key rustic-mode-map (kbd "C-x") 'nano-exit)
+
+;; Python
+(require 'python-mode)
+(define-key python-mode-map (kbd "C-x") 'nano-exit)
+
+;; JavaScript / TypeScript
+(require 'js2-mode)
+(add-to-list 'auto-mode-alist '("\\.js\\'" . js2-mode))
+(add-to-list 'auto-mode-alist '("\\.jsx\\'" . js2-mode))
+(add-to-list 'auto-mode-alist '("\\.mjs\\'" . js2-mode))
+(define-key js2-mode-map (kbd "C-x") 'nano-exit)
+
+(require 'typescript-mode)
+(add-to-list 'auto-mode-alist '("\\.ts\\'" . typescript-mode))
+(add-to-list 'auto-mode-alist '("\\.tsx\\'" . typescript-mode))
+(define-key typescript-mode-map (kbd "C-x") 'nano-exit)
+
+;; YAML
+(require 'yaml-mode)
+(add-to-list 'auto-mode-alist '("\\.yml\\'" . yaml-mode))
+(add-to-list 'auto-mode-alist '("\\.yaml\\'" . yaml-mode))
+(define-key yaml-mode-map (kbd "C-x") 'nano-exit)
+
+;; TOML
+(require 'toml-mode)
+(add-to-list 'auto-mode-alist '("\\.toml\\'" . toml-mode))
+(define-key toml-mode-map (kbd "C-x") 'nano-exit)
+
+;; JSON
+(require 'json-mode)
+(add-to-list 'auto-mode-alist '("\\.json\\'" . json-mode))
+(define-key json-mode-map (kbd "C-x") 'nano-exit)
+
+;; Markdown
+(require 'markdown-mode)
+(add-to-list 'auto-mode-alist '("\\.md\\'" . markdown-mode))
+(add-to-list 'auto-mode-alist '("\\.markdown\\'" . markdown-mode))
+(define-key markdown-mode-map (kbd "C-x") 'nano-exit)
+
+;; Dockerfile
+(require 'dockerfile-mode)
+(add-to-list 'auto-mode-alist '("Dockerfile\\'" . dockerfile-mode))
+(define-key dockerfile-mode-map (kbd "C-x") 'nano-exit)
+
+;; Lua
+(require 'lua-mode)
+(add-to-list 'auto-mode-alist '("\\.lua\\'" . lua-mode))
+(define-key lua-mode-map (kbd "C-x") 'nano-exit)
 
 ;; 底部快捷键栏（左：快捷键提示，右：状态信息）
 (setq-default mode-line-format
