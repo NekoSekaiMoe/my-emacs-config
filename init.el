@@ -264,8 +264,7 @@
         (goto-char (point-min))
         (forward-line (max 0 (1- line)))
         (move-to-column (max 0 col))
-        (recenter)
-        (nano-go-to-line-activate-keymap))))))
+        (recenter))))))
 
 ;; ^/ 跳转模式 - 使用 overriding-local-map 强制覆盖
 (defvar nano-go-to-line--original-pos nil)
@@ -381,7 +380,7 @@
 
 (defun nano-search-prompt-input ()
   "Nano 风格搜索：弹出搜索框，预填上次搜索字符串。
-直接回车（空输入）时，若与上次搜索相同则搜索下一个，否则从头搜索。"
+直接回车（空输入）时搜索下一个，输入新字符串则从头搜索。"
   ;; 确保 overriding-local-map 已清理，防止干扰 read-string
   (setq overriding-local-map nil)
   (let* ((history nano-search-history)
@@ -389,7 +388,7 @@
          (prompt (if default-val
                      (concat "Search [" default-val "]: ")
                    "Search: "))
-         (input (read-string prompt nil 'nano-search-history default-val)))
+         (input (read-string prompt nil 'nano-search-history)))
     (cond
      ((string= input "")
       (if default-val
@@ -397,6 +396,9 @@
             (setq nano-search-string default-val)
             (nano-search-find-next))
         (message "Cancelled")))
+     ((and default-val (string= input default-val))
+      ;; 输入与上次搜索相同，搜索下一个
+      (nano-search-find-next))
      (t
       (setq nano-search-string input)
       (nano-search-find-first)))))
