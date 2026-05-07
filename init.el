@@ -374,16 +374,14 @@
 (global-set-key (kbd "M-c") 'nano-search-toggle-case)
 
 (defun nano-search ()
-  "Nano 风格的搜索"
+  "Nano 风格搜索：弹出搜索框。
+回车空输入则重复上次搜索（搜索下一个），输入新字符串则从头搜索。"
   (interactive)
-  (if nano-search-string
-      ;; 如果已有搜索字符串，直接搜索下一个
-      (nano-search-find-next)
-    ;; 首次搜索，提示输入字符串
-    (nano-search-prompt-input)))
+  (nano-search-prompt-input))
 
 (defun nano-search-prompt-input ()
-  "首次搜索：提示输入搜索字符串"
+  "Nano 风格搜索：弹出搜索框，预填上次搜索字符串。
+直接回车（空输入）时，若与上次搜索相同则搜索下一个，否则从头搜索。"
   ;; 确保 overriding-local-map 已清理，防止干扰 read-string
   (setq overriding-local-map nil)
   (let* ((history nano-search-history)
@@ -397,7 +395,7 @@
       (if default-val
           (progn
             (setq nano-search-string default-val)
-            (nano-search-find-first))
+            (nano-search-find-next))
         (message "Cancelled")))
      (t
       (setq nano-search-string input)
