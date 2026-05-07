@@ -137,6 +137,7 @@
 (save-place-mode 1)               ;; 记住上次打开文件光标的位置
 (global-subword-mode 1)           ;; 拆分连字符：oneWord 会被当作两个单词处理
 (electric-pair-mode 1)            ;; 自动补全括号：( → ()，[ → []，{ → {}，" → ""
+(electric-indent-mode 1)          ;; 自动缩进：上一行什么缩进下一行自动什么缩进
 
 ;; 时间显示设置
 (display-time-mode 1)   ;; 启用时间显示设置,在minibuffer上面的那个杠上
@@ -806,7 +807,9 @@
 
 ;; mode → 可能的 LSP 服务器可执行文件名列表
 (defconst nano--lsp-servers
-  '((go-mode          . ("gopls"))
+  '((c-mode           . ("clangd"))
+    (c++-mode         . ("clangd"))
+    (go-mode          . ("gopls"))
     (rustic-mode      . ("rust-analyzer"))
     (rust-mode        . ("rust-analyzer"))
     (python-mode      . ("pylsp" "pyright-langserver" "jedi-language-server" "ruff"))
@@ -824,6 +827,24 @@
   "各 major-mode 对应的 LSP 服务器候选名。")
 
 ;; ========== 语言模式 — 按需加载 ==========
+
+;; C / C++ — LSP (clangd) 提供补全 + 诊断
+(add-to-list 'auto-mode-alist '("\\.c\\'" . c-mode))
+(add-to-list 'auto-mode-alist '("\\.h\\'" . c-mode))
+(add-to-list 'auto-mode-alist '("\\.cpp\\'" . c++-mode))
+(add-to-list 'auto-mode-alist '("\\.cc\\'" . c++-mode))
+(add-to-list 'auto-mode-alist '("\\.cxx\\'" . c++-mode))
+(add-to-list 'auto-mode-alist '("\\.hpp\\'" . c++-mode))
+(add-to-list 'auto-mode-alist '("\\.hxx\\'" . c++-mode))
+(add-to-list 'auto-mode-alist '("\\.inl\\'" . c++-mode))
+
+(defun nano-c-mode-setup ()
+  "C/C++ 模式初始化：LSP + 快捷键。"
+  (nano-eglot-ensure)
+  (define-key (current-local-map) (kbd "C-x") 'nano-exit))
+
+(add-hook 'c-mode-hook #'nano-c-mode-setup)
+(add-hook 'c++-mode-hook #'nano-c-mode-setup)
 
 ;; Go
 (autoload 'go-mode "go-mode" nil t)
