@@ -69,12 +69,17 @@
  next-line-add-newlines nil  ;; 按C-n或down时不添加新行
  ;; emacs启动时显示的内容可以通过变量initial-scratch-message来设置
  initial-scratch-message nil
- dired-listing-switches "-vha" ;;  dired 列出文件的参数（man ls）
+  dired-listing-switches "-vha" ;;  dired 列出文件的参数（man ls）
+  recentf-max-saved-items 50   ;; 记录最近 50 个文件
+  recentf-max-menu-items 15     ;; 菜单最多显示 15 个
  show-paren-style 'parenthesis ;; 括号匹配时高亮显示另一边的括号，而不是跳到另一个括号处
  undo-limit 80000000           ;; 提升撤销限制
- truncate-string-ellipsis "…"  ;; Unicode ellispis are nicer than "...", and also save /precious/ space
- ;; 当寻找一个同名的文件,改变两个buffer的名字,前面加上目录名
- uniquify-buffer-name-style 'post-forward-angle-brackets)
+  truncate-string-ellipsis "…"  ;; Unicode ellispis are nicer than "...", and also save /precious/ space
+  ;; 当寻找一个同名的文件,改变两个buffer的名字,前面加上目录名
+  uniquify-buffer-name-style 'post-forward-angle-brackets
+  ;; 禁用默认 startup screen，用自定义欢迎页替代
+  inhibit-startup-screen t
+  initial-buffer-choice 'nano-welcome-page)
 
 ;; Nano 风格的备份文件 (.xxx.swp)
 (setq make-backup-files t                    ;; 启用备份
@@ -900,6 +905,89 @@
 (with-eval-after-load 'lua-mode
   (define-key lua-mode-map (kbd "C-x") 'nano-exit))
 
+;; ========== 欢迎页（最近文件） ==========
+
+(require 'recentf)
+(recentf-mode 1)
+
+(defconst nano-welcome-buffer-name "*Welcome*"
+  "欢迎页 buffer 名称。")
+
+(defun nano-welcome-render ()
+  "渲染欢迎页内容。"
+  (let ((inhibit-read-only t))
+    (erase-buffer)
+    ;; 标题
+    (insert (propertize "Emacs Nano\n" 'face '(:height 2.0 :weight bold)))
+    (insert (propertize (make-string 40 ?─) 'face '(:foreground "grey50")))
+    (insert "\n\n")
+    ;; 快捷键提示
+    (insert (propertize "快捷键\n" 'face '(:weight bold :height 1.2)))
+    (insert "  ^O 保存    ^W 搜索    ^K 剪切    ^X 退出\n")
+    (insert "  ^T 打开    ^R 读取    ^\\ 替换    ^U 粘贴\n")
+    (insert "  ^/ 跳转    ^J 对齐    M-U 撤销   M-E 重做\n")
+    (insert "\n")
+    (insert (propertize (make-string 40 ?─) 'face '(:foreground "grey50")))
+    (insert "\n\n")
+    ;; 最近文件
+    (insert (propertize "最近文件\n" 'face '(:weight bold :height 1.2)))
+    (let ((files (seq-take recentf-list 10)))
+      (if files
+          (dolist (file files)
+            (let ((key (format "  [%d] " (1- (cl-position file files :test 'equal)))))
+              (insert (propertize key 'face '(:foreground "cyan")))
+              (insert (propertize file 'face '(:foreground "grey80")))
+              (insert "\n")))
+        (insert (propertize "  (暂无最近文件)\n" 'face '(:foreground "grey50")))))
+    (insert "\n")
+    (insert (propertize (make-string 40 ?─) 'face '(:foreground "grey50")))
+    (insert "\n")
+    (insert (propertize "按数字键 1-0 打开对应文件，^O 打开其他文件\n"
+                        'face '(:foreground "grey50")))))
+
+(defun nano-welcome-open-file (n)
+  "打开最近文件中第 N 个（1-indexed）。"
+  (interactive "p")
+  (let ((files (seq-take recentf-list 10)))
+    (when (> n (length files))
+      (user-error "没有第 %d 个最近文件" n))
+    (find-file (nth (1- n) files))
+    (message "已打开 %s" (nth (1- n) files))))
+
+(defun nano-welcome-refresh ()
+  "刷新欢迎页。"
+  (interactive)
+  (nano-welcome-render))
+
+(defun nano-welcome-page ()
+  "显示 Nano 欢迎页。"
+  (interactive)
+  (let ((buf (get-buffer-create nano-welcome-buffer-name)))
+    (with-current-buffer buf
+      (nano-welcome-render)
+      ;; 数字键 1-0 打开对应文件
+      (dotimes (i 9)
+        (local-set-key (kbd (number-to-string (1+ i)))
+                       (lambda () (interactive) (nano-welcome-open-file (1+ i)))))
+      (local-set-key (kbd "0") (lambda () (interactive) (nano-welcome-open-file 10)))
+      ;; ^O 打开其他文件
+      (local-set-key (kbd "C-o") 'find-file)
+      ;; ^R 刷新
+      (local-set-key (kbd "C-r") 'nano-welcome-refresh)
+      ;; ^X 直接退出，不询问保存
+      (local-set-key (kbd "C-x") #'kill-emacs)
+      ;; 禁止插入内容
+      (setq-local buffer-read-only t)
+      (setq-local cursor-type nil)
+      ;; 居中显示
+      (goto-char (point-min))
+      ;; 渲染后重置 modified 状态，避免 nano-exit 误判
+      (set-buffer-modified-p nil))
+    (switch-to-buffer buf)))
+
+;; 启动时显示欢迎页
+(add-hook 'emacs-startup-hook #'nano-welcome-page)
+
 ;; 底部快捷键栏（左：快捷键提示，右：状态信息）
 (setq-default mode-line-format
   '((:eval (propertize " ^G Help | ^O Write Out | ^W Where Is | ^K Cut | ^T Execute | ^C Location | ^6 Mark Set "
@@ -915,7 +1003,4 @@
     (:eval (propertize " ^X Exit | ^R Read File | ^\\ Replace | ^U Paste | ^J Justify | ^/ Go To Line | M-U Undo "
                        'face '(:background "grey20" :foreground "white")))))
 
-;; 启动时显示快捷键提示
-(add-hook 'emacs-startup-hook
-          (lambda ()
-            (message "Press ^G for Help")))
+;; 启动欢迎页已替代默认提示
