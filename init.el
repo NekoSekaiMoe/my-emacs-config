@@ -107,8 +107,9 @@
                     (when (file-exists-p swp-file)
                       (delete-file swp-file))))))))
 
-;; 禁用 lock file（#filename#）
-(setq create-lockfiles nil)
+;; 禁用 lock file（.#filename#）和 auto-save 文件（#filename#）
+(setq create-lockfiles nil
+      auto-save-default nil)
 
 ;; 禁用所有 UI 元素
 (menu-bar-mode -1)                ;; 取消菜单栏
@@ -753,6 +754,9 @@
 (define-key company-active-map (kbd "C-p") #'company-select-previous)
 (define-key company-active-map (kbd "C-j") #'company-complete-selection)
 (define-key company-active-map (kbd "TAB") #'company-complete-common-or-cycle)
+
+;; TAB 默认插入真实 Tab 字符；补全菜单激活时 company-active-map 优先拦截
+(define-key company-mode-map (kbd "TAB") (lambda () (interactive) (insert "\t")))
 (define-key company-active-map (kbd "RET") #'company-complete-selection)
 (define-key company-active-map (kbd "<down>") #'company-select-next)
 (define-key company-active-map (kbd "<up>") #'company-select-previous)
