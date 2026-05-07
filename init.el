@@ -62,8 +62,8 @@
  kill-ring-max 200           ;; 设置 kill ring 个数
  default-fill-column 60      ;; 把fill-column设为60.让文字更好读
  enable-recursive-minibuffers t  ;; 递归的使用minibuffer
- scroll-margin 3             ;; 在靠近屏幕边沿 3 行时就开始滚动,可很好看到上下文
- scroll-conservatively 10000 ;; 防止页面滚动时跳动
+  scroll-margin 0             ;; 不提前滚动，由 scroll-conservatively 控制
+  scroll-conservatively 10000 ;; 光标超出窗口时才滚动，尽量保持光标居中
  select-enable-clipboard t   ;; 允许emacs和外部程序进行粘贴
  track-eol t                 ;; 当光标在行尾上下移动的时候,始终保持在行尾
  next-line-add-newlines nil  ;; 按C-n或down时不添加新行
@@ -664,7 +664,7 @@
 ;; ========== 启动优化：减少 GC ==========
 
 ;; 启动时提高 GC 阈值，完成后恢复
-(setq gc-cons-threshold (* 128 1024 1024)) ; 128MB
+(setq gc-cons-threshold (* 256 1024 1024)) ; 256MB
 (add-hook 'emacs-startup-hook
           (lambda ()
             (setq gc-cons-threshold (* 16 1024 1024)))) ; 恢复 16MB
