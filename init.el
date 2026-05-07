@@ -384,6 +384,8 @@
 
 (defun nano-search-prompt-input ()
   "首次搜索：提示输入搜索字符串"
+  ;; 确保 overriding-local-map 已清理，防止干扰 read-string
+  (setq overriding-local-map nil)
   (let* ((history nano-search-history)
          (default-val (car history))
          (prompt (if default-val
@@ -452,6 +454,8 @@
 
 (defun nano-replace-prompt-search ()
   "第一步：输入搜索字符串"
+  ;; 确保之前的替换模式已清理，防止 overriding-local-map 干扰 read-string
+  (nano-replace-deactivate-keymap)
   (let* ((history nano-replace-history)
          (default-val (car history))
          (prompt (if default-val
@@ -470,6 +474,8 @@
 
 (defun nano-replace-prompt-replace ()
   "第二步：输入替换字符串"
+  ;; 确保 overriding-local-map 不干扰 read-string（输入法拼音会被 keymap 拦截）
+  (nano-replace-deactivate-keymap)
   (let ((prompt (concat "Replace with [" nano-replace-search "]: ")))
     (setq nano-replace-replace (read-string prompt)))
   (nano-replace-execute))
@@ -480,25 +486,36 @@
 
 (defun nano-replace-execute ()
   "执行替换，显示第一个匹配并等待用户操作"
-  (let ((case-fold-search (not nano-replace-case))
-        (search-func (nano-replace--search-func)))
-    (if (funcall search-func nano-replace-search nil t)
-        (progn
-          (setq nano-replace-match-start (match-beginning 0))
-          (setq nano-replace-match-end (match-end 0))
-          (nano-replace-show-first-match))
-      (message "No occurrences found")
-      (nano-replace-cleanup))))
+  (condition-case err
+      (let ((case-fold-search (not nano-replace-case))
+            (search-func (nano-replace--search-func)))
+        (if (funcall search-func nano-replace-search nil t)
+            (progn
+              (setq nano-replace-match-start (match-beginning 0))
+              (setq nano-replace-match-end (match-end 0))
+              (nano-replace-show-first-match))
+          (message "No occurrences found")
+          (nano-replace-cleanup)))
+    (error
+     (message "Replace error: %s" (error-message-string err))
+     (nano-replace-deactivate-keymap)
+     (nano-replace-cleanup))))
 
 (defun nano-replace-show-first-match ()
   "显示第一个匹配，激活局部按键映射"
-  (goto-char nano-replace-match-start)
-  (recenter)
-  (when nano-replace-overlay
-    (delete-overlay nano-replace-overlay))
-  (setq nano-replace-overlay (make-overlay nano-replace-match-start nano-replace-match-end))
-  (overlay-put nano-replace-overlay 'face 'highlight)
-  (nano-replace-activate-keymap))
+  (condition-case err
+      (progn
+        (goto-char nano-replace-match-start)
+        (recenter)
+        (when nano-replace-overlay
+          (delete-overlay nano-replace-overlay))
+        (setq nano-replace-overlay (make-overlay nano-replace-match-start nano-replace-match-end))
+        (overlay-put nano-replace-overlay 'face 'highlight)
+        (nano-replace-activate-keymap))
+    (error
+     (message "Replace error: %s" (error-message-string err))
+     (nano-replace-deactivate-keymap)
+     (nano-replace-cleanup))))
 
 ;; ^\ 替换模式 - 使用 overriding-local-map
 (defvar nano-replace--active nil)
@@ -511,11 +528,14 @@
   (save-excursion
     (goto-char (point-min))
     (let ((count 0)
-          (case-fold-search (not nano-replace-case)))
-      (while (search-forward nano-replace-search nil t)
-        (replace-match nano-replace-replace)
-        (setq count (1+ count)))
-      (message "Replaced %d occurrences" count)))
+          (case-fold-search (not nano-replace-case))
+          (max-iter 10000))
+      (while (and (search-forward nano-replace-search nil t)
+                  (< (setq count (1+ count)) max-iter))
+        (replace-match nano-replace-replace))
+      (if (>= count max-iter)
+          (message "Replace stopped after %d (possible infinite loop)" count)
+        (message "Replaced %d occurrences" count))))
   (nano-replace-deactivate-keymap)
   (nano-replace-cleanup))
 
