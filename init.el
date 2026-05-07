@@ -741,6 +741,10 @@
 (dolist (pkg '(python-mode js2-mode typescript-mode yaml-mode toml-mode json-mode markdown-mode dockerfile-mode lua-mode))
   (unless (package-installed-p pkg)
     (package-install pkg)))
+;; 新语言模式
+(dolist (pkg '(kotlin-mode cmake-mode meson-mode))
+  (unless (package-installed-p pkg)
+    (package-install pkg)))
 
 ;; company 自动补全 — 延迟加载
 (with-eval-after-load 'company
@@ -807,23 +811,26 @@
 
 ;; mode → 可能的 LSP 服务器可执行文件名列表
 (defconst nano--lsp-servers
-  '((c-mode           . ("clangd"))
-    (c++-mode         . ("clangd"))
-    (go-mode          . ("gopls"))
-    (rustic-mode      . ("rust-analyzer"))
-    (rust-mode        . ("rust-analyzer"))
-    (python-mode      . ("pylsp" "pyright-langserver" "jedi-language-server" "ruff"))
-    (python-ts-mode   . ("pylsp" "pyright-langserver" "jedi-language-server" "ruff"))
-    (js2-mode         . ("typescript-language-server" "vscode-html-language-server"))
-    (js-mode          . ("typescript-language-server" "vscode-html-language-server"))
-    (typescript-mode  . ("typescript-language-server"))
-    (typescript-ts-mode . ("typescript-language-server"))
-    (yaml-mode        . ("yaml-language-server"))
-    (json-mode        . ("vscode-json-language-server" "json-languageserver"))
-    (json-ts-mode     . ("vscode-json-language-server" "json-languageserver"))
-    (markdown-mode    . ("marksman" "vscode-markdown-language-server"))
-    (dockerfile-mode  . ("docker-langserver"))
-    (lua-mode         . ("lua-language-server" "lua-lsp")))
+  '((c-mode              . ("clangd"))
+    (c++-mode            . ("clangd"))
+    (java-mode           . ("jdtls"))
+    (kotlin-mode         . ("kotlin-language-server"))
+    (go-mode             . ("gopls"))
+    (rustic-mode         . ("rust-analyzer"))
+    (rust-mode           . ("rust-analyzer"))
+    (python-mode         . ("pylsp" "pyright-langserver" "jedi-language-server" "ruff"))
+    (python-ts-mode      . ("pylsp" "pyright-langserver" "jedi-language-server" "ruff"))
+    (js2-mode            . ("typescript-language-server" "vscode-html-language-server"))
+    (js-mode             . ("typescript-language-server" "vscode-html-language-server"))
+    (typescript-mode     . ("typescript-language-server"))
+    (typescript-ts-mode  . ("typescript-language-server"))
+    (cmake-mode          . ("cmake-language-server"))
+    (yaml-mode           . ("yaml-language-server"))
+    (json-mode           . ("vscode-json-language-server" "json-languageserver"))
+    (json-ts-mode        . ("vscode-json-language-server" "json-languageserver"))
+    (markdown-mode       . ("marksman" "vscode-markdown-language-server"))
+    (dockerfile-mode     . ("docker-langserver"))
+    (lua-mode            . ("lua-language-server" "lua-lsp")))
   "各 major-mode 对应的 LSP 服务器候选名。")
 
 ;; ========== 语言模式 — 按需加载 ==========
@@ -846,10 +853,170 @@
 (add-hook 'c-mode-hook #'nano-c-mode-setup)
 (add-hook 'c++-mode-hook #'nano-c-mode-setup)
 
+;; ========== 语言关键字补全（LSP 优先，关键字表作 fallback） ==========
+
+;; Go 关键字
+(defconst nano-go-keywords
+  '("break" "case" "chan" "const" "continue" "default" "defer" "else"
+    "fallthrough" "for" "func" "go" "goto" "if" "import" "interface"
+    "map" "package" "range" "return" "select" "struct" "switch" "type" "var"
+    "append" "cap" "close" "complex" "copy" "delete" "imag" "len" "make"
+    "new" "panic" "print" "println" "real" "recover"
+    "nil" "true" "false" "iota"
+    "int" "int8" "int16" "int32" "int64"
+    "uint" "uint8" "uint16" "uint32" "uint64" "uintptr"
+    "float32" "float64" "complex64" "complex128"
+    "bool" "byte" "rune" "string" "error"
+    "fmt" "os" "io" "net" "time" "sync" "context")
+  "Go 关键字列表。")
+
+;; Java 关键字
+(defconst nano-java-keywords
+  '("abstract" "assert" "boolean" "break" "byte" "case" "catch" "char"
+    "class" "const" "continue" "default" "do" "double" "else" "enum"
+    "extends" "final" "finally" "float" "for" "goto" "if" "implements"
+    "import" "instanceof" "int" "interface" "long" "native" "new"
+    "package" "private" "protected" "public" "return" "short" "static"
+    "strictfp" "super" "switch" "synchronized" "this" "throw" "throws"
+    "transient" "try" "void" "volatile" "while"
+    "var" "record" "sealed" "permits" "yield"
+    "true" "false" "null"
+    "System" "String" "Integer" "Double" "Boolean" "Long" "Float"
+    "Byte" "Short" "Character" "Object" "Class" "Math"
+    "ArrayList" "HashMap" "HashSet" "LinkedList" "TreeMap" "TreeSet"
+    "List" "Map" "Set" "Queue" "Deque" "Collection" "Collections"
+    "Arrays" "Objects" "Optional" "Stream"
+    "println" "print" "printf" "format"
+    "out" "err" "in"
+    "Override" "Deprecated" "SuppressWarnings" "FunctionalInterface"
+    "Retention" "Target" "Documented" "Inherited")
+  "Java 关键字列表。")
+
+;; Kotlin 关键字
+(defconst nano-kotlin-keywords
+  '("abstract" "actual" "annotation" "as" "break" "by" "catch" "class"
+    "companion" "const" "constructor" "continue" "crossinline" "data"
+    "delegate" "do" "dynamic" "else" "enum" "expect" "external" "false"
+    "field" "file" "final" "finally" "for" "fun" "get" "if" "import"
+    "in" "infix" "init" "inline" "inner" "interface" "internal" "is"
+    "lateinit" "noinline" "null" "object" "open" "operator" "out"
+    "override" "package" "param" "private" "property" "protected"
+    "public" "reified" "return" "sealed" "set" "super" "suspend"
+    "tailrec" "this" "throw" "true" "try" "typealias" "typeof"
+    "val" "var" "vararg" "when" "where" "while"
+    "println" "print" "readLine" "listOf" "mutableListOf" "setOf"
+    "mutableSetOf" "mapOf" "mutableMapOf" "arrayOf"
+    "Int" "Long" "Float" "Double" "Boolean" "Char" "Byte" "Short"
+    "String" "Unit" "Nothing" "Any"
+    "run" "let" "also" "apply" "with"
+    "lazy" "lateinit")
+  "Kotlin 关键字列表。")
+
+;; Python 关键字
+(defconst nano-python-keywords
+  '("False" "None" "True" "and" "as" "assert" "async" "await" "break"
+    "class" "continue" "def" "del" "elif" "else" "except" "finally"
+    "for" "from" "global" "if" "import" "in" "is" "lambda" "nonlocal"
+    "not" "or" "pass" "raise" "return" "try" "while" "with" "yield"
+    "print" "len" "range" "enumerate" "zip" "map" "filter" "sorted"
+    "reversed" "sum" "min" "max" "abs" "round" "type" "isinstance"
+    "issubclass" "hasattr" "getattr" "setattr" "delattr" "dir" "vars"
+    "open" "input" "int" "float" "str" "list" "dict" "tuple" "set"
+    "frozenset" "bool" "bytes" "bytearray" "memoryview"
+    "self" "cls" "super" "property" "staticmethod" "classmethod"
+    "Exception" "ValueError" "TypeError" "KeyError" "IndexError"
+    "AttributeError" "ImportError" "RuntimeError" "StopIteration"
+    "os" "sys" "json" "re" "math" "datetime" "collections" "itertools"
+    "functools" "pathlib" "subprocess" "threading" "multiprocessing")
+  "Python 关键字列表。")
+
+;; JavaScript / TypeScript 关键字
+(defconst nano-js-keywords
+  '("break" "case" "catch" "class" "const" "continue" "debugger" "default"
+    "delete" "do" "else" "export" "extends" "false" "finally" "for"
+    "function" "if" "import" "in" "instanceof" "let" "new" "null"
+    "return" "static" "super" "switch" "this" "throw" "true" "try"
+    "typeof" "undefined" "var" "void" "while" "with" "yield" "async"
+    "await" "of" "from" "as"
+    "console" "document" "window" "Math" "JSON" "Object" "Array"
+    "String" "Number" "Boolean" "Symbol" "Map" "Set" "WeakMap" "WeakSet"
+    "Promise" "Error" "RegExp" "Date" "parseInt" "parseFloat"
+    "isNaN" "isFinite" "setTimeout" "setInterval" "clearTimeout"
+    "clearInterval" "fetch" "require" "module" "exports" "global"
+    "process" "Buffer" "URL" "URLSearchParams"
+    "log" "warn" "error" "info" "debug" "table" "dir")
+  "JavaScript/TypeScript 关键字列表。")
+
+;; Rust 关键字
+(defconst nano-rust-keywords
+  '("as" "async" "await" "break" "const" "continue" "crate" "dyn" "else"
+    "enum" "extern" "false" "fn" "for" "if" "impl" "in" "let" "loop"
+    "match" "mod" "move" "mut" "pub" "ref" "return" "self" "Self"
+    "static" "struct" "super" "trait" "true" "type" "unsafe" "use"
+    "where" "while" "abstract" "become" "box" "do" "final" "macro"
+    "override" "priv" "try" "typeof" "unsized" "virtual" "yield"
+    "println" "print" "format" "vec" "Some" "None" "Ok" "Err"
+    "String" "Vec" "Box" "Option" "Result" "HashMap" "HashSet"
+    "i8" "i16" "i32" "i64" "i128" "isize"
+    "u8" "u16" "u32" "u64" "u128" "usize"
+    "f32" "f64" "bool" "char" "str" "String")
+  "Rust 关键字列表。")
+
+;; Lua 关键字
+(defconst nano-lua-keywords
+  '("and" "break" "do" "else" "elseif" "end" "false" "for" "function"
+    "goto" "if" "in" "local" "nil" "not" "or" "repeat" "return"
+    "then" "true" "until" "while"
+    "print" "tostring" "tonumber" "type" "unpack" "require"
+    "pairs" "ipairs" "next" "select" "pcall" "xpcall" "error"
+    "assert" "collectgarbage" "dofile" "getmetatable" "setmetatable"
+    "rawget" "rawset" "rawequal"
+    "string" "table" "math" "io" "os" "debug" "package" "coroutine"
+    "self")
+  "Lua 关键字列表。")
+
+;; Dockerfile 关键字
+(defconst nano-dockerfile-keywords
+  '("FROM" "RUN" "CMD" "LABEL" "MAINTAINER" "EXPOSE" "ENV" "ADD" "COPY"
+    "ENTRYPOINT" "VOLUME" "USER" "WORKDIR" "ARG" "ONBUILD" "STOPSIGNAL"
+    "HEALTHCHECK" "SHELL" "AS")
+  "Dockerfile 关键字列表。")
+
+;; CMake 关键字
+(defconst nano-cmake-keywords
+  '("cmake_minimum_required" "project" "add_executable" "add_library"
+    "target_link_libraries" "target_include_directories"
+    "target_compile_definitions" "target_compile_options" "target_sources"
+    "set" "unset" "option"
+    "if" "elseif" "else" "endif"
+    "foreach" "endforeach" "while" "endwhile"
+    "function" "endfunction" "macro" "endmacro"
+    "return" "break" "continue"
+    "include" "find_package" "find_library" "find_path" "find_file"
+    "find_program"
+    "message" "configure_file" "file" "string" "list"
+    "add_subdirectory" "add_test" "enable_testing"
+    "install" "export"
+    "CMAKE_C_COMPILER" "CMAKE_CXX_COMPILER"
+    "CMAKE_BUILD_TYPE" "CMAKE_INSTALL_PREFIX"
+    "CMAKE_SOURCE_DIR" "CMAKE_BINARY_DIR"
+    "CMAKE_CURRENT_SOURCE_DIR" "CMAKE_CURRENT_BINARY_DIR"
+    "include_directories" "link_directories" "add_definitions"
+    "PRIVATE" "PUBLIC" "INTERFACE"
+    "STATIC" "SHARED" "MODULE"
+    "ON" "OFF" "TRUE" "FALSE"
+    "AND" "OR" "NOT"
+    "EXISTS" "IS_DIRECTORY" "IS_ABSOLUTE"
+    "GREATER" "LESS" "EQUAL"
+    "VERSION_GREATER" "VERSION_LESS" "VERSION_EQUAL"
+    "MATCHES" "IN_LIST")
+  "CMake 关键字列表。")
+
 ;; Go
 (autoload 'go-mode "go-mode" nil t)
 (add-to-list 'auto-mode-alist '("\\.go\\'" . go-mode))
 (with-eval-after-load 'go-mode
+  (setq-local company-keywords nano-go-keywords)
   (define-key go-mode-map (kbd "C-x") 'nano-exit)
   (add-hook 'go-mode-hook #'nano-eglot-ensure))
 
@@ -857,6 +1024,7 @@
 (autoload 'rust-mode "rust-mode" nil t)
 (add-to-list 'auto-mode-alist '("\\.rs\\'" . rust-mode))
 (with-eval-after-load 'rust-mode
+  (setq-local company-keywords nano-rust-keywords)
   (define-key rust-mode-map (kbd "C-x") 'nano-exit)
   (add-hook 'rust-mode-hook #'nano-eglot-ensure))
 
@@ -864,6 +1032,7 @@
 (autoload 'python-mode "python-mode" nil t)
 (add-to-list 'auto-mode-alist '("\\.py\\'" . python-mode))
 (with-eval-after-load 'python-mode
+  (setq-local company-keywords nano-python-keywords)
   (define-key python-mode-map (kbd "C-x") 'nano-exit)
   (add-hook 'python-mode-hook #'nano-eglot-ensure))
 
@@ -873,6 +1042,7 @@
 (add-to-list 'auto-mode-alist '("\\.jsx\\'" . js2-mode))
 (add-to-list 'auto-mode-alist '("\\.mjs\\'" . js2-mode))
 (with-eval-after-load 'js2-mode
+  (setq-local company-keywords nano-js-keywords)
   (define-key js2-mode-map (kbd "C-x") 'nano-exit)
   (add-hook 'js2-mode-hook #'nano-eglot-ensure))
 
@@ -881,6 +1051,7 @@
 (add-to-list 'auto-mode-alist '("\\.ts\\'" . typescript-mode))
 (add-to-list 'auto-mode-alist '("\\.tsx\\'" . typescript-mode))
 (with-eval-after-load 'typescript-mode
+  (setq-local company-keywords nano-js-keywords)
   (define-key typescript-mode-map (kbd "C-x") 'nano-exit)
   (add-hook 'typescript-mode-hook #'nano-eglot-ensure))
 
@@ -914,13 +1085,60 @@
 (autoload 'dockerfile-mode "dockerfile-mode" nil t)
 (add-to-list 'auto-mode-alist '("Dockerfile\\'" . dockerfile-mode))
 (with-eval-after-load 'dockerfile-mode
+  (setq-local company-keywords nano-dockerfile-keywords)
   (define-key dockerfile-mode-map (kbd "C-x") 'nano-exit))
 
 ;; Lua
 (autoload 'lua-mode "lua-mode" nil t)
 (add-to-list 'auto-mode-alist '("\\.lua\\'" . lua-mode))
 (with-eval-after-load 'lua-mode
+  (setq-local company-keywords nano-lua-keywords)
   (define-key lua-mode-map (kbd "C-x") 'nano-exit))
+
+;; Java — LSP (jdtls) 提供补全 + 诊断
+(add-to-list 'auto-mode-alist '("\\.java\\'" . java-mode))
+(with-eval-after-load 'java-mode
+  (setq-local company-keywords nano-java-keywords)
+  (add-hook 'java-mode-hook #'nano-eglot-ensure))
+
+;; Kotlin — LSP (kotlin-language-server) 提供补全 + 诊断
+(autoload 'kotlin-mode "kotlin-mode" nil t)
+(add-to-list 'auto-mode-alist '("\\.kt\\'" . kotlin-mode))
+(add-to-list 'auto-mode-alist '("\\.kts\\'" . kotlin-mode))
+(with-eval-after-load 'kotlin-mode
+  (setq-local company-keywords nano-kotlin-keywords)
+  (add-hook 'kotlin-mode-hook #'nano-eglot-ensure))
+
+;; CMake — LSP (cmake-language-server) 提供补全 + 诊断
+(autoload 'cmake-mode "cmake-mode" nil t)
+(add-to-list 'auto-mode-alist '("CMakeLists\\.txt\\'" . cmake-mode))
+(add-to-list 'auto-mode-alist '("\\.cmake\\'" . cmake-mode))
+(with-eval-after-load 'cmake-mode
+  (setq-local company-keywords nano-cmake-keywords)
+  (add-hook 'cmake-mode-hook #'nano-eglot-ensure))
+
+;; Meson（meson-mode 在 MELPA）
+(autoload 'meson-mode "meson-mode" nil t)
+(add-to-list 'auto-mode-alist '("meson\\.build\\'" . meson-mode))
+(add-to-list 'auto-mode-alist '("meson_options\\.txt\\'" . meson-mode))
+(with-eval-after-load 'meson-mode
+  (define-key meson-mode-map (kbd "C-x") 'nano-exit))
+
+;; Makefile（内置 make-mode）
+(add-to-list 'auto-mode-alist '("Makefile\\'" . makefile-mode))
+(add-to-list 'auto-mode-alist '("GNUmakefile\\'" . makefile-mode))
+(add-to-list 'auto-mode-alist '("\\.mak\\'" . makefile-mode))
+(add-to-list 'auto-mode-alist '("\\.mk\\'" . makefile-mode))
+
+;; Autoconf
+(add-to-list 'auto-mode-alist '("configure\\.ac\\'" . autoconf-mode))
+(add-to-list 'auto-mode-alist '("Makefile\\.am\\'" . autoconf-mode))
+(add-to-list 'auto-mode-alist '("\\.ac\\'" . autoconf-mode))
+(add-to-list 'auto-mode-alist '("\\.in\\'" . autoconf-mode))
+
+;; Lex / Yacc（内置）
+(add-to-list 'auto-mode-alist '("\\.l\\'" . c-mode))    ; Lex 用 C 模式
+(add-to-list 'auto-mode-alist '("\\.y\\'" . c-mode))    ; Yacc 用 C 模式
 
 ;; ========== 欢迎页（最近文件） ==========
 

@@ -34,7 +34,7 @@ Personal Emacs configuration — a single `init.el` that makes Emacs behave like
 
 ## Supported Languages
 
-Go, Rust, Python, JavaScript, TypeScript, YAML, TOML, JSON, Markdown, Dockerfile, Lua — each with autoload + optional LSP.
+C/C++ (clangd), Go (gopls), Java (jdtls), Kotlin (kotlin-language-server), Rust (rust-analyzer), Python (pylsp/pyright), JavaScript/TypeScript (typescript-language-server), CMake (cmake-language-server), plus YAML, TOML, JSON, Markdown, Dockerfile, Lua, Makefile, Autoconf, Meson, Lex/Yacc — each with autoload + keyword completion + optional LSP.
 
 ## Search & Replace
 
