@@ -107,6 +107,9 @@
                     (when (file-exists-p swp-file)
                       (delete-file swp-file))))))))
 
+;; 禁用 lock file（#filename#）
+(setq create-lockfiles nil)
+
 ;; 禁用所有 UI 元素
 (menu-bar-mode -1)                ;; 取消菜单栏
 (tool-bar-mode -1)                ;; 取消工具栏
