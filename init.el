@@ -77,9 +77,8 @@
   truncate-string-ellipsis "…"  ;; Unicode ellispis are nicer than "...", and also save /precious/ space
   ;; 当寻找一个同名的文件,改变两个buffer的名字,前面加上目录名
   uniquify-buffer-name-style 'post-forward-angle-brackets
-  ;; 禁用默认 startup screen，用自定义欢迎页替代
-  inhibit-startup-screen t
-  initial-buffer-choice 'nano-welcome-page)
+  ;; 禁用默认 startup screen
+  inhibit-startup-screen t)
 
 ;; Nano 风格的备份文件 (.xxx.swp)
 (setq make-backup-files t                    ;; 启用备份
@@ -137,6 +136,7 @@
 (require 'saveplace)
 (save-place-mode 1)               ;; 记住上次打开文件光标的位置
 (global-subword-mode 1)           ;; 拆分连字符：oneWord 会被当作两个单词处理
+(electric-pair-mode 1)            ;; 自动补全括号：( → ()，[ → []，{ → {}，" → ""
 
 ;; 时间显示设置
 (display-time-mode 1)   ;; 启用时间显示设置,在minibuffer上面的那个杠上
@@ -985,8 +985,12 @@
       (set-buffer-modified-p nil))
     (switch-to-buffer buf)))
 
-;; 启动时显示欢迎页
-(add-hook 'emacs-startup-hook #'nano-welcome-page)
+;; 启动时显示欢迎页（仅当没有打开文件时）
+(add-hook 'emacs-startup-hook
+          (lambda ()
+            (unless (or (cdr command-line-args) ; 有文件参数
+                        (frame-parameter nil 'client)) ; daemon client
+              (nano-welcome-page))))
 
 ;; 底部快捷键栏（左：快捷键提示，右：状态信息）
 (setq-default mode-line-format
