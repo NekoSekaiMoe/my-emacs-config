@@ -968,7 +968,7 @@
       ;; 数字键 1-0 打开对应文件
       (dotimes (i 9)
         (local-set-key (kbd (number-to-string (1+ i)))
-                       (lambda () (interactive) (nano-welcome-open-file (1+ i)))))
+                       `(lambda () (interactive) (nano-welcome-open-file ,(1+ i)))))
       (local-set-key (kbd "0") (lambda () (interactive) (nano-welcome-open-file 10)))
       ;; ^O 打开其他文件
       (local-set-key (kbd "C-o") 'find-file)
