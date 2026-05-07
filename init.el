@@ -418,23 +418,30 @@
 (defun nano-search-find-next ()
   "查找下一个匹配，支持 wrap"
   (let ((case-fold-search (not nano-search-case))
-        (found nil))
+        (found nil)
+        (match-start nil)
+        (match-end nil))
     ;; 从上次匹配结束位置之后开始搜索
     (when nano-search-last-match-data
       (goto-char (cdr nano-search-last-match-data))
-      (setq found (search-forward nano-search-string nil t)))
+      (when (search-forward nano-search-string nil t)
+        (setq found t
+              match-start (match-beginning 0)
+              match-end (match-end 0))))
     (if found
         (progn
-          (setq nano-search-last-match-data (cons (match-beginning 0) (match-end 0)))
-          (goto-char (match-beginning 0))
+          (setq nano-search-last-match-data (cons match-start match-end))
+          (goto-char match-start)
           (recenter)
           (message "Found"))
       ;; 没找到，从头开始搜索（wrap）
       (goto-char (point-min))
       (if (search-forward nano-search-string nil t)
           (progn
-            (setq nano-search-last-match-data (cons (match-beginning 0) (match-end 0)))
-            (goto-char (match-beginning 0))
+            (setq match-start (match-beginning 0)
+                  match-end (match-end 0))
+            (setq nano-search-last-match-data (cons match-start match-end))
+            (goto-char match-start)
             (recenter)
             (message "Search wrapped"))
         (message "Not found")
