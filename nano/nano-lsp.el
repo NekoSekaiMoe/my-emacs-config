@@ -86,7 +86,9 @@
     (json-ts-mode        . ("vscode-json-language-server" "json-languageserver"))
     (markdown-mode       . ("marksman" "vscode-markdown-language-server"))
     (dockerfile-mode     . ("docker-langserver"))
-    (lua-mode            . ("lua-language-server" "lua-lsp")))
+    (lua-mode            . ("lua-language-server" "lua-lsp"))
+    (perl-mode           . ("perl-language-server"))
+    (cperl-mode          . ("perl-language-server")))
   "各 major-mode 对应的 LSP 服务器候选名。")
 
 ;; ========== 语言关键字补全（LSP 优先，关键字表作 fallback） ==========

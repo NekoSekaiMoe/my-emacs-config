@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-sudo apt install python3-pylsp gopls clangd rust-analyzer nodejs -y
+sudo apt install python3-pylsp gopls clangd rust-analyzer nodejs libperl-languageserver-perl -y
 
 corepack enable yarn
 
