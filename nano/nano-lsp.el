@@ -76,10 +76,10 @@
     (rust-mode           . ("rust-analyzer"))
     (python-mode         . ("pylsp"))
     (python-ts-mode      . ("pylsp"))
-    (js2-mode            . ("typescript-language-server" "vscode-html-language-server"))
-    (js-mode             . ("typescript-language-server" "vscode-html-language-server"))
-    (typescript-mode     . ("typescript-language-server"))
-    (typescript-ts-mode  . ("typescript-language-server"))
+    (js2-mode            . ("vtsls"))
+    (js-mode             . ("vtsls"))
+    (typescript-mode     . ("vtsls"))
+    (typescript-ts-mode  . ("vtsls"))
     (cmake-mode          . ("cmake-language-server"))
     (yaml-mode           . ("yaml-language-server"))
     (json-mode           . ("vscode-json-language-server" "json-languageserver"))
@@ -130,36 +130,6 @@
     "run" "let" "also" "apply" "with"
     "lazy" "lateinit")
   "Kotlin 关键字列表。")
-
-(defconst nano-js-keywords
-  '("break" "case" "catch" "class" "const" "continue" "debugger" "default"
-    "delete" "do" "else" "export" "extends" "false" "finally" "for"
-    "function" "if" "import" "in" "instanceof" "let" "new" "null"
-    "return" "static" "super" "switch" "this" "throw" "true" "try"
-    "typeof" "undefined" "var" "void" "while" "with" "yield" "async"
-    "await" "of" "from" "as"
-    "console" "document" "window" "Math" "JSON" "Object" "Array"
-    "String" "Number" "Boolean" "Symbol" "Map" "Set" "WeakMap" "WeakSet"
-    "Promise" "Error" "RegExp" "Date" "parseInt" "parseFloat"
-    "isNaN" "isFinite" "setTimeout" "setInterval" "clearTimeout"
-    "clearInterval" "fetch" "require" "module" "exports" "global"
-    "process" "Buffer" "URL" "URLSearchParams"
-    "log" "warn" "error" "info" "debug" "table" "dir")
-  "JavaScript/TypeScript 关键字列表。")
-
-(defconst nano-rust-keywords
-  '("as" "async" "await" "break" "const" "continue" "crate" "dyn" "else"
-    "enum" "extern" "false" "fn" "for" "if" "impl" "in" "let" "loop"
-    "match" "mod" "move" "mut" "pub" "ref" "return" "self" "Self"
-    "static" "struct" "super" "trait" "true" "type" "unsafe" "use"
-    "where" "while" "abstract" "become" "box" "do" "final" "macro"
-    "override" "priv" "try" "typeof" "unsized" "virtual" "yield"
-    "println" "print" "format" "vec" "Some" "None" "Ok" "Err"
-    "String" "Vec" "Box" "Option" "Result" "HashMap" "HashSet"
-    "i8" "i16" "i32" "i64" "i128" "isize"
-    "u8" "u16" "u32" "u64" "u128" "usize"
-    "f32" "f64" "bool" "char" "str" "String")
-  "Rust 关键字列表。")
 
 (defconst nano-lua-keywords
   '("and" "break" "do" "else" "elseif" "end" "false" "for" "function"
@@ -253,7 +223,6 @@
 (autoload 'rust-mode "rust-mode" nil t)
 (add-to-list 'auto-mode-alist '("\\.rs\\'" . rust-mode))
 (with-eval-after-load 'rust-mode
-  (setq-local company-keywords nano-rust-keywords)
   (define-key rust-mode-map (kbd "C-x") 'nano-exit)
   (add-hook 'rust-mode-hook #'nano-eglot-ensure))
 
@@ -270,16 +239,14 @@
 (add-to-list 'auto-mode-alist '("\\.jsx\\'" . js2-mode))
 (add-to-list 'auto-mode-alist '("\\.mjs\\'" . js2-mode))
 (with-eval-after-load 'js2-mode
-  (setq-local company-keywords nano-js-keywords)
   (define-key js2-mode-map (kbd "C-x") 'nano-exit)
   (add-hook 'js2-mode-hook #'nano-eglot-ensure))
 
-;; TypeScript — typescript-language-server
+;; TypeScript — vtsls
 (autoload 'typescript-mode "typescript-mode" nil t)
 (add-to-list 'auto-mode-alist '("\\.ts\\'" . typescript-mode))
 (add-to-list 'auto-mode-alist '("\\.tsx\\'" . typescript-mode))
 (with-eval-after-load 'typescript-mode
-  (setq-local company-keywords nano-js-keywords)
   (define-key typescript-mode-map (kbd "C-x") 'nano-exit)
   (add-hook 'typescript-mode-hook #'nano-eglot-ensure))
 

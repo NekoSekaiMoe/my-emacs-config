@@ -50,12 +50,12 @@ After pressing `C-/` and entering a line number, the following sub-commands are 
 | Language | LSP Server | Keyword Completion |
 |----------|-----------|-------------------|
 | C/C++ | clangd | — |
-| Go | gopls | ✅ |
+| Go | gopls | — |
 | Java | jdtls | ✅ |
 | Kotlin | kotlin-language-server | ✅ |
-| Rust | rust-analyzer | ✅ |
-| Python | pylsp/pyright | ✅ |
-| JavaScript/TypeScript | typescript-language-server | ✅ |
+| Rust | rust-analyzer | — |
+| Python | pylsp | — |
+| JavaScript/TypeScript | vtsls | — |
 | CMake | cmake-language-server | ✅ |
 | YAML | yaml-language-server | — |
 | JSON | vscode-json-language-server | — |
