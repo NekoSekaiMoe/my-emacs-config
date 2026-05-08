@@ -62,6 +62,7 @@ After pressing `C-/` and entering a line number, the following sub-commands are 
 | Markdown | marksman | — |
 | Dockerfile | docker-langserver | ✅ |
 | Lua | lua-language-server | ✅ |
+| Perl | perl-language-server | — |
 | TOML | — | — |
 | Makefile | — | — |
 | Autoconf | — | — |

@@ -90,18 +90,18 @@
  inhibit-startup-screen t)
 
 ;; ========== 备份文件（Nano 风格 .xxx.swp） ==========
+;; ========== 备份设置 ==========
+;; 使用 Nano 风格的 .swp 备份（.<filename>.swp），不生成 ~ 后缀备份
 
-(setq make-backup-files t
-      backup-by-copying t
-      backup-directory-alist '(("." . "."))
-      delete-old-versions t
+(setq make-backup-files nil            ; 不生成 ~ 后缀备份
+      create-lockfiles nil             ; 不生成 .# 锁文件
+      auto-save-default nil            ; 不生成 #auto-save# 文件
       kept-new-versions 3
       kept-old-versions 2
       version-control t
       vc-make-backup-files t)
 
-(setq backup-directory-alist nil)
-
+;; Nano 风格备份文件名
 (defun nano-make-backup-file-name (filename)
   "生成 Nano 风格的 .xxx.swp 备份文件名。"
   (let ((dirname (file-name-directory filename))
@@ -110,6 +110,7 @@
 
 (setq make-backup-file-name-function 'nano-make-backup-file-name)
 
+;; 退出时删除 swp 文件
 (add-hook 'kill-emacs-hook
           (lambda ()
             (dolist (buf (buffer-list))
@@ -118,9 +119,6 @@
                   (let ((swp-file (nano-make-backup-file-name buffer-file-name)))
                     (when (file-exists-p swp-file)
                       (delete-file swp-file))))))))
-
-(setq create-lockfiles nil
-      auto-save-default nil)
 
 ;; ========== UI 元素 ==========
 
