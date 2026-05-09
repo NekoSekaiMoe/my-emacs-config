@@ -5,10 +5,6 @@
 
 ;;; Code:
 
-;; ========== 禁用 C-x 前缀键 ==========
-
-(global-unset-key (kbd "C-x"))
-
 ;; ========== 全局快捷键 ==========
 
 ;; ^G - 取消
@@ -67,7 +63,7 @@
 ;; M-E - 重做
 (global-set-key (kbd "M-e") 'undo-redo)
 
-;; ^X - 退出
+;; ^X - 退出（通过 minor mode 覆盖所有 major mode 的局部绑定）
 (defun nano-exit ()
   "Nano 风格的退出。"
   (interactive)
@@ -84,7 +80,17 @@
          ((eq choice ?\C-g)
           (message "Cancelled"))))
     (kill-emacs)))
-(global-set-key (kbd "C-x") 'nano-exit)
+
+(defvar nano-keymap (make-sparse-keymap) "Nano 全局快捷键映射。")
+(define-key nano-keymap (kbd "C-x") 'nano-exit)
+
+(define-minor-mode nano-keys-mode
+  "Nano 风格全局快捷键模式，优先级高于所有 major mode。"
+  :global t
+  :keymap nano-keymap
+  :lighter "")
+
+(nano-keys-mode 1)
 
 ;; ^R - 读取文件
 (global-set-key (kbd "C-r") 'find-file)
