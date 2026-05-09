@@ -163,14 +163,21 @@
 (setq package-archives
       '(("melpa" . "https://melpa.org/packages/")
         ("gnu" . "https://elpa.gnu.org/packages/")))
-(package-initialize)
+(setq package-enable-at-startup nil)
 
-(unless (package-installed-p 'use-package)
-  (package-refresh-contents)
-  (package-install 'use-package))
-(require 'use-package)
-(setq use-package-always-ensure t
-      use-package-always-defer t)
+(add-hook 'after-init-hook #'nano-init-packages)
+
+(defun nano-init-packages ()
+  "延迟初始化包管理，避免拖慢启动。"
+  (package-initialize)
+  (unless (package-installed-p 'use-package)
+    (package-refresh-contents)
+    (package-install 'use-package))
+  (require 'use-package)
+  (setq use-package-always-ensure t
+        use-package-always-defer t)
+  ;; nano-lsp 依赖 use-package，延迟加载
+  (require 'nano-lsp))
 
 (provide 'nano-util)
 ;;; nano-util.el ends here

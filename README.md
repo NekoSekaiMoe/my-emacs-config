@@ -64,10 +64,10 @@ After pressing `C-/` and entering a line number, the following sub-commands are 
 | Lua | lua-language-server | ✅ |
 | Perl | perl-language-server | — |
 | TOML | — | — |
-| Makefile | — | — |
-| Autoconf | — | — |
-| Meson | — | — |
-| Lex/Yacc | — | — |
+| Makefile | — | ✅ |
+| Autoconf | — | ✅ |
+| Meson | — | ✅ |
+| Lex/Yacc | — | ✅ |
 
 ## Search & Replace
 
