@@ -11,6 +11,16 @@
 (defconst nano-welcome-buffer-name "*Welcome*"
   "欢迎页 buffer 名称。")
 
+(defun nano-welcome-clean-recentf ()
+  "移除 recentf-list 中不存在的文件。"
+  (when recentf-list
+    (let ((removed (cl-remove-if #'file-exists-p recentf-list)))
+      (when removed
+        (setq recentf-list (cl-remove-if-not #'file-exists-p recentf-list))
+        (recentf-save-list)
+        (dolist (file removed)
+          (message "已从最近文件移除: %s" file))))))
+
 (defun nano-welcome-render ()
   "渲染欢迎页内容。"
   (let ((inhibit-read-only t))
@@ -49,8 +59,10 @@
   (let ((files (seq-take recentf-list 10)))
     (when (> n (length files))
       (user-error "没有第 %d 个最近文件" n))
-    (find-file (nth (1- n) files))
-    (message "已打开 %s" (nth (1- n) files))))
+    (let ((file (nth (1- n) files)))
+      (if (file-exists-p file)
+          (progn (find-file file) (message "已打开 %s" file))
+        (user-error "文件不存在: %s" file)))))
 
 (defun nano-welcome-refresh ()
   "刷新欢迎页。"
@@ -75,6 +87,8 @@
       (goto-char (point-min))
       (set-buffer-modified-p nil))
     (switch-to-buffer buf)))
+
+(add-hook 'emacs-startup-hook #'nano-welcome-clean-recentf)
 
 (add-hook 'emacs-startup-hook
           (lambda ()
