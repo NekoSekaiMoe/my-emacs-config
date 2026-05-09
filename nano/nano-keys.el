@@ -5,6 +5,26 @@
 
 ;;; Code:
 
+;; ========== 命令别名 ==========
+
+(defalias 'diff 'vc-diff)
+(defalias 'log 'vc-print-log)
+(defalias 'tab 'switch-to-buffer)
+(defalias 'push 'vc-push)
+(defalias 'pull 'vc-pull)
+(defalias 'edf 'vc-ediff)
+(defalias 'fdf 'vc-root-diff)
+(defalias 'next 'vc-next-action)
+(defalias 'blm 'vc-annotate)
+(defalias 'rst 'vc-rollback)
+(defalias 'fix 'vc-resolve-conflicts)
+(defalias 'crb 'vc-vc-create-branch)
+(defalias 'cht 'vc-retrieve-tag)
+(defalias 'crt 'vc-create-tag)
+(defalias 'flog 'vc-print-log)
+(defalias 'plog 'vc-print-root-log)
+(defalias 'slog 'vc-log-search)
+
 ;; ========== 全局快捷键 ==========
 
 ;; ^G - 取消
