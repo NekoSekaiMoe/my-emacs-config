@@ -10,7 +10,7 @@
 (defalias 'diff 'vc-diff)
 (defalias 'log 'vc-print-log)
 (defalias 'tab 'switch-to-buffer)
-(defalias 'push 'vc-push)
+(defalias 'fp 'vc-push)
 (defalias 'pull 'vc-pull)
 (defalias 'edf 'vc-ediff)
 (defalias 'fdf 'vc-root-diff)
