@@ -16,6 +16,6 @@
 (require 'nano-window)  ; 标题栏、mode-line、GC优化
 (require 'nano-keys)    ; 快捷键、搜索、替换、跳转
 (require 'nano-welcome) ; 欢迎页
-;; nano-lsp 在 after-init-hook 中延迟加载（依赖 use-package）
+;; nano-lsp 在 after-init-hook → nano-init-packages 中延迟加载
 
 ;;; init.el ends here

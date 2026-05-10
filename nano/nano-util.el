@@ -176,8 +176,16 @@
   (require 'use-package)
   (setq use-package-always-ensure t
         use-package-always-defer t)
-  ;; nano-lsp 依赖 use-package，延迟加载
-  (require 'nano-lsp))
+   ;; nano-lsp 依赖 use-package，延迟加载
+   (require 'nano-lsp)
+   ;; 提前加载核心包，避免首次打开文件时才加载导致卡顿
+   (require 'company)
+   (require 'flycheck)
+   (require 'yasnippet)
+   ;; after-init-hook 已执行完毕，直接启用全局模式
+   (global-company-mode 1)
+   (global-flycheck-mode 1)
+   (yas-global-mode 1))
 
 (provide 'nano-util)
 ;;; nano-util.el ends here

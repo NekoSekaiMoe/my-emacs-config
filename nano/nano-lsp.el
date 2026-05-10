@@ -43,11 +43,8 @@
 (with-eval-after-load 'yasnippet
   (setq yas-snippet-dirs '("~/.emacs.d/snippets")))
 
-;; ========== 延迟启用全局模式 ==========
-
-(add-hook 'after-init-hook #'global-company-mode)
-(add-hook 'after-init-hook #'global-flycheck-mode)
-(add-hook 'after-init-hook #'yas-global-mode)
+;; ========== 全局模式在 nano-init-packages 中同步启用 ==========
+;; 见 nano-util.el nano-init-packages
 
 ;; ========== LSP (eglot) ==========
 
